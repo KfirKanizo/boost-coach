@@ -1,0 +1,89 @@
+# Production stack: Nginx (TLS reverse proxy) + Let's Encrypt + FastAPI + PostgreSQL.
+#
+#   cp .env.prod.example .env          # then fill in real secrets
+#   docker compose up -d nginx         # boot the reverse proxy (placeholder cert)
+#   docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+#       -d fit.idone.co.il --email ops@fit.idone.co.il --agree-tos --no-eff-email
+#   docker compose exec nginx nginx -s reload   # swap placeholder -> real cert
+#   docker compose up -d               # bring up the whole stack
+#   docker compose run --rm api alembic upgrade head
+#
+# Auto-renewal (host cron — certbot renews ~30 days before expiry):
+#   0 3 * * * cd /opt/boostcoach/deploy && docker compose run --rm certbot renew --quiet && docker exec boostcoach_nginx nginx -s reload
+
+services:
+  nginx:
+    build:
+      context: ./nginx
+    container_name: boostcoach_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - api
+    networks:
+      - boostcoach
+
+  # Not started by `up -d` (profile-gated). Invoked explicitly for the initial
+  # issuance above and by the cron renewal job.
+  certbot:
+    image: certbot/certbot:latest
+    container_name: boostcoach_certbot
+    profiles: ["certbot"]
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+
+  db:
+    image: postgres:16-alpine
+    container_name: boostcoach_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - boostcoach
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: boostcoach_api
+    restart: unless-stopped
+    # No --reload in production; one worker per core via --workers is fine to tune.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - boostcoach
+
+volumes:
+  pgdata:
+  certbot_conf:
+  certbot_www:
+
+networks:
+  boostcoach:
+    driver: bridge

@@ -1,0 +1,203 @@
+﻿System Requirements Specification: BoostCoach.fit
+Lead Architect: Kfir Kanizo
+Date of Creation: August 2026
+
+
+
+
+
+
+Preface
+This System Requirements Specification (SRS) document is designed to define the proposed information system, BoostCoach.fit. The document consolidates all necessary information for the planning, development, and implementation of the system, ranging from functional requirements to data architecture and integrations, ensuring a smooth transition from the planning phase to the Production environment.
+
+
+
+
+Executive Summary
+BoostCoach.fit is a SaaS platform making physical fitness accessible to a target audience of busy, unmotivated professionals. The system champions a "zero-friction" approach, eliminating the need for manual data entry by utilizing Edge AI (computer vision) that recognizes movement, counts repetitions, and corrects posture in real-time. The application replaces the concept of traditional "workouts" with short daily "Boosts", employs a Large Language Model (LLM) as a personal virtual coach, and is built on a flexible, polymorphic database designed to accommodate future growth and expansion into additional sports.
+
+
+
+
+Introduction and System Goals
+Background and Need: The fitness app market is saturated with solutions for highly motivated individuals but fails to retain beginners due to a cumbersome user experience and the requirement for manual data logging. The business need is a proactive system requiring zero managerial effort from the user. Technological and Business Goals:
+
+
+* Build a local motion-tracking system (on the edge device) without heavy cloud processing costs.
+* Achieve high retention rates by building an "Energy Map" that encourages a positive streak of activity.
+* Design a Python-based backend infrastructure ready to scale to millions of users.
+
+
+
+
+________________
+Functional Requirements
+
+
+
+
+* Dynamic Program Generation: The system's ability to generate and maintain multiple training environments for a user (e.g., gym vs. home calisthenics).
+* Smart "Boost" Execution: Activating the front camera, detecting skeletal landmarks, counting repetitions, and providing visual/audio feedback without human touch.
+* Smart Swap: A real-time exercise substitution engine based on target muscle, current training environment, and available equipment.
+* Progressive Profiling: Collecting body metrics through natural conversation with the virtual coach, avoiding long registration forms.
+
+
+
+
+Non-Functional Requirements
+
+
+
+
+* Performance: Local camera processing will run at 30 to 60 frames per second without degrading the user experience.
+* Information Security and Privacy: The video stream will not be saved or sent to the server at any point; only aggregated text data (JSON) will be transmitted to the cloud.
+* Compatibility and i18n: Full support for Right-to-Left (RTL) for Hebrew and Left-to-Right (LTR) for English screens.
+* Future-Proof Architecture: Using JSONB in the database to support future GPS-based running workouts without breaking the schema.
+
+
+
+
+Main Users
+
+
+
+
+* End-User (Trainee): A busy professional sitting in front of a screen for hours, needing simple, barrier-free fitness guidance to build a healthy habit.
+* System Administrator (Admin): Manages the exercise catalog, defines the Smart Swap rules, and monitors API server performance.
+
+
+
+
+________________
+
+
+
+
+Use Cases
+
+
+
+
+UC-01: Authentication & Zero-Friction Login
+
+
+* Preconditions: The user has downloaded the app and opens it for the first time.
+* Main Flow: The user selects quick login (Google/Apple Sign-In). The system validates the token with the Auth server, creates a new record in the USERS table with a unique identifier (UUID), and instantly redirects them to the home screen (The Flow).
+* Exceptions: In the event of a communication failure with the identity provider (OAuth), a brief error message will be displayed, and the user will be prompted to try again in a few seconds.
+
+
+UC-02: Progressive Profiling
+
+
+* Preconditions: The user's profile is missing an essential metric (such as weight or height), and they navigate to The Coach screen.
+* Main Flow: The bot pops up a light, context-aware message (e.g., "To accurately calculate your calorie burn, what is your weight?"). The user enters the numerical value in the text box. The system captures the data, updates the profile in the database, and confirms the update with the user.
+* Exceptions: If the user closes the screen or ignores the message, the system does not block further use. The request is logged and postponed to a later date to prevent cognitive overload.
+
+
+UC-03: Dynamic Program Generation
+
+
+* Preconditions: The user is registered in the system and wishes to define a new training environment.
+* Main Flow: The user selects their preferred training environment (e.g., "Home Calisthenics" or "Gym"). The logic engine runs on the server, builds a weekly split, and fetches relevant "Boosts" from the exercise catalog that match the available equipment in that environment. The program is saved in the TRAINING_PROGRAMS table as active.
+* Exceptions: If the user changes environments in the middle of the day, the system will immediately refresh the daily Boosts list while preserving the achievements (Boosts already completed) of that day.
+________________
+
+
+UC-04: Computer-Vision Based Workout Execution (The Studio)
+
+
+* Preconditions: The user has selected an active "Boost" and granted camera access permission.
+* Main Flow: The system opens the camera and detects skeletal points (Landmarks). A countdown of repetitions is performed based on real-time angle calculations. The system provides color indicators and success sounds for every correct repetition.
+* Exceptions: In case of poor lighting or body detection failure, the system pauses the timer, dims the display, and prompts the user to improve the lighting or step back.
+
+
+UC-05: Smart Swap
+
+
+* Preconditions: There is an active training ticket in The Flow that has not yet been started.
+* Main Flow: The user taps the Swap button and specifies the reason for the substitution (e.g., "I don't have equipment"). The rules engine searches the DB for an alternative sharing the same target muscle and movement pattern, instantly updates the screen, and logs the swap details in SWAP_LOGS.
+* Exceptions: If no suitable alternative is found for the user's constraints, the system offers a light recovery task (e.g., stretching) to prevent frustration and streak disruption.
+
+
+UC-06: AI Coach Feedback (The Coach)
+
+
+* Preconditions: The user has successfully completed their daily Boosts, and the data has synced to the server.
+* Main Flow: The server packages the workout metrics into a JSON and sends them as a prompt to the LLM (e.g., OpenAI). The system receives a personalized feedback text, displays it as a chat bubble, and the user can reply with free text that will influence tomorrow's planning.
+* Exceptions: In case of a connection failure to the LLM API, the system will not wait (short Timeout) and will immediately display generic positive feedback stored locally to maintain a fast flow (Zero-Friction).
+
+
+________________
+
+
+UC-07: Exercise Catalog and Rules Engine Management (Admin / CMS Flow)
+
+
+* Preconditions: The system administrator (Admin) is logged into the management interface with appropriate permissions.
+* Main Flow: The admin inputs a new exercise into the system, defines its name in JSON format (Hebrew and English), and categorizes it by muscle group (primary_muscle), trigger type (VISION_REP), and required equipment. The data is saved in the EXERCISES table and immediately becomes available for the Smart Swap engine and dynamic training programs.
+* Exceptions: If the admin attempts to save an exercise without the mandatory fields required for the rules engine (e.g., without defining equipment), the system will block the save and alert them about the missing data.
+
+
+
+
+________________
+Initial Data Model (ERD)
+
+
+
+
+The model is based on a polymorphic schema supporting business flexibility:
+
+
+* USERS: Fields including a unique ID, metrics (height, weight) collected progressively, and a "Streak" status for the Energy Map.
+* EXERCISES: An entity containing metadata (target muscle, movement pattern), name translations (JSONB), and the technological trigger type (camera, timer).
+* TRAINING_PROGRAMS: Connects the user to the training environment (e.g., gym vs. home environment).
+* DAILY_BOOSTS: Contains target data (target_metrics) and actual execution data in a flexible JSONB format.
+* SWAP_LOGS: Logs user choices during exercise swaps for future system improvement.
+
+
+
+
+Integration with Existing Systems
+
+
+
+
+* Computer Vision Engine: Client-side integration with the MediaPipe library (via WebAssembly/WebGL) for real-time Pose detection.
+* Large Language Model (LLM): Server-side integration with AI provider APIs (such as OpenAI or Anthropic) to generate smart, text-based feedback.
+
+
+
+
+Initial User Interfaces (Wireframes)
+
+
+
+
+* The Flow (Home Screen): Displays the Energy Map at the top of the screen, a list of "Boost" cards to execute that day, and a large central action button ("EXECUTE").
+* The Studio (Execution Screen): A clean camera interface covering the entire screen, an overlay (HUD) displaying only a countdown timer, and color indicators (green/red) for movement correction.
+* The Coach (Feedback Screen): A messaging-app-like interface displaying a workout summary card and a textual dialogue with the bot.
+
+
+
+
+________________
+Risk Management Plan
+
+
+
+
+* Hardware/Environment Risk: Failure in movement detection due to weak end-user devices or poor lighting. Mitigation: A short onboarding tutorial and proactive error detection before the workout starts.
+* Algorithmic Risk (AI Hallucinations): The language model might recommend a dangerous action. Mitigation: Limiting LLM usage to formulating textual feedback only, while the workout generation engine remains deterministic.
+
+
+
+
+Resource Estimation
+
+
+
+
+* Tools and Technologies: Server-side development based on Python/FastAPI, client-side development as a Web App wrapped in Capacitor, and a PostgreSQL database (via Supabase/Neon).
+* Work Estimation: Development of the MVP version is estimated at approximately 8 weeks of work for a Full-Stack developer/architect.
+* Infrastructure: Initial monthly costs are estimated at less than $15/month, thanks to performing the image processing on the edge device.

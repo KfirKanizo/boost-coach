@@ -1,0 +1,137 @@
+﻿Project Initiation Document (PID)
+System Name: BoostCoach
+Date: August 2026
+
+
+1. Preface
+This Project Initiation Document (PID) outlines the vision, architecture, and business rationale for developing BoostCoach. It consolidates all critical information required by stakeholders to move forward into the detailed specification and development phases. The document defines the target audience, technical scope, evaluated alternatives, and the blueprint for building a scalable Production-ready SaaS application.
+
+
+2. Executive Summary
+BoostCoach is an AI-driven, zero-friction fitness application targeting individuals—specifically busy tech professionals—who struggle with intrinsic motivation to exercise. The app eliminates manual data entry by utilizing Edge-based Computer Vision (MediaPipe) to automatically track movements and count repetitions.
+
+
+The system leverages modern, positive UX paradigms: daily tasks are reframed as "Boosts", and progress is visualized via a warm, welcoming "Energy Map". Users can manage multiple environments (e.g., Gym vs. Home Calisthenics) and seamlessly swap exercises using a context-aware Smart Swap engine. Built on a polymorphic database architecture, the MVP is designed for immediate cost-efficiency while being inherently future-proofed for upcoming expansions, such as GPS-based running tracking.
+
+
+3. Background and Current Situation
+The current digital fitness market is saturated with applications built for users who already possess high motivation. These platforms demand significant manual input, long session commitments, and active navigation through complex menus. For sedentary professionals, this high-friction User Experience (UX) is the primary barrier to entry, leading to rapid abandonment of the software shortly after installation.
+
+
+4. Business Problem / Need
+There is a critical lack of fitness solutions designed specifically for the "unmotivated" demographic. The core business problem is the high drop-off rate caused by friction in workout tracking and planning. Users require a system that acts autonomously—observing their movements, counting repetitions, offering micro-workouts ("Boosts") that fit seamlessly into a busy schedule, and providing a highly flexible, conversational onboarding experience (Progressive Profiling) instead of tedious sign-up forms.
+
+
+5. Project Goals
+* Zero-Friction Tracking: Implement edge-based AI vision to achieve 100% automated workout logging without manual user input.
+* Adaptive & Contextual Personalization: Deliver a dynamic workout engine allowing users to maintain multiple active programs (e.g., Calisthenics, Gym) and seamlessly swap exercises based on real-time constraints and available equipment.
+* * High Retention (Gamification): Utilize positive reinforcement mechanics, specifically the "Energy Map" (visualizing streaks as glowing energy bubbles), to achieve high daily active user retention.
+* * Future-Proof Scalability: Architect a polymorphic database (utilizing JSONB structures) that supports current Vision-based Boosts and is fully ready to integrate GPS/Distance tracking for running in future iterations.
+* * Cost-Effective Infrastructure: Maintain MVP backend infrastructure and AI processing costs below $10 per month by offloading vision processing to the client device and restricting server-side LLM calls to lightweight textual feedback.
+6. Stakeholders
+* Project Initiator / Lead Architect: Responsible for system architecture, database design, core development, and deployment.
+* * End-Users: Target demographic of unmotivated professionals seeking an effortless entry into physical activity.
+* * Third-Party Providers: Infrastructure services (e.g., Supabase/Neon for Database & Auth, Vercel/Cloudflare for Hosting, OpenAI/Anthropic for LLM APIs).
+
+
+7. Initial Scope
+In-Scope for MVP:
+
+
+
+
+* Progressive Web App (PWA) development wrapped into native mobile apps (iOS/Android) via Capacitor.
+* * Flat, 3-tab UI architecture: The Flow (Dashboard), The Coach (AI Chat), and Profile/Config.
+* * Client-side integration of Google MediaPipe (@mediapipe/pose) for real-time posture tracking via WebGL/WebAssembly.
+* * Deterministic "Smart Swap" logic engine for dynamic exercise substitution based on active environment (Gym vs. Home) and target muscle groups.
+* * Text-based LLM integration for processing concise workout summaries and delivering customized, persona-driven motivational feedback.
+* Progressive profiling system to gather user metrics (weight, height) naturally via conversational AI prompts.
+* Polymorphic DB schema to support various boost_type entries.
+
+
+Out-of-Scope for MVP:
+* Calendar API integration and automated time-slot scheduling.
+* * Background Machine Learning models for predictive exercise preference.
+* * AI Nutrition and image-based calorie scanning.
+* * Real-time multiplayer or social leaderboards.
+* 8. Possible Alternatives9. Selected Direction and Business Justification
+Alternative Solution
+	Pros
+	Cons
+	1. Standard Manual Input App
+	Fastest to develop; simple CRUD architecture.
+	Fails to solve the core business problem of user friction. Guaranteed high churn rate.
+
+
+	2. Cloud-Vision Processing
+	Centralized control; less dependent on user's mobile hardware capabilities.
+	Prohibitively expensive server API costs; severe latency ruining real-time feedback; major privacy concerns regarding video uploads.
+
+
+	3. Edge AI + Text-based LLM (Selected)
+	Zero variable costs for vision processing; instant real-time HUD feedback; high privacy (video stays on device).
+	Requires optimizing client-side performance for mobile WebViews via Capacitor.
+
+
+	Alternative 3 (Edge AI with Text-based LLM) is the selected path. This architecture uniquely solves the "zero-friction" requirement for unmotivated users while remaining financially viable for a Production scale SaaS. By offloading the heavy computer vision processing to the user's mobile device and restricting server-side AI to lightweight textual analysis, BoostCoach avoids the excessive cloud computing costs and latency issues that typically plague AI video startups. Furthermore, the decision to use a polymorphic database ensures the system is enterprise-ready and capable of scaling to include running (GPS) tracking without structural migrations.
+
+
+10. Estimated Schedule
+Phase
+	Description
+	Estimated Duration
+	Phase 1: Foundation & Architecture
+	DB Setup (PostgreSQL with JSONB), Auth, base UI layout (The Flow, The Coach) with i18n support.
+	Weeks 1 - 2
+
+
+	Phase 2: Edge AI Integration
+	Implement MediaPipe inside The Studio factory component. Write deterministic counting logic for core exercises.
+	Weeks 3 - 5
+
+
+	Phase 3: Logic Engine & LLM
+	Develop the multi-environment "Smart Swap" rules engine. Integrate LLM API for The Coach feedback processing.
+	Weeks 6 - 7
+
+
+	Phase 4: Wrapping & QA
+	Implement Capacitor wrapper, configure OS background/camera permissions, Beta testing, and production deployment.
+	Week 8
+
+
+	11. Initial Risks and Working Assumptions
+* Risk: Environmental Variables: Edge AI tracking may degrade in low-light environments.
+
+   * Mitigation: Include a brief, visual tooltip regarding lighting and positioning before the first "Boost", and implement a fallback UI if tracking fails.
+
+
+   * Risk: LLM Hallucination: The AI might suggest unsafe exercises.
+
+      * Mitigation: The LLM is restricted strictly to generating conversational feedback. Exercise selection and the "Smart Swap" mechanism are strictly governed by the internal deterministic rules engine querying the verified PostgreSQL catalog.
+
+
+      * Assumption: The target demographic utilizes modern smartphones capable of running WebGL-accelerated models smoothly within a WebView.
+12. Initial Cost Estimates (Monthly - MVP Phase)
+Item / Service
+	Provider Example
+	Estimated Cost DOCX
+	Frontend Hosting
+	Cloudflare Pages / Vercel
+	$0
+	Backend & Database
+	Supabase / Neon (Free Tier to start)
+	$0 - $5
+	LLM API Usage
+	OpenAI (GPT-4o-mini) / Anthropic
+	~$2 - $5
+	Vision Tracking
+	Google MediaPipe (Open Source)
+	$0
+	App Store Developer Fees
+	Apple / Google
+	~$10 (Annually amortized)
+	Total Estimated Monthly Variable Cost
+	
+
+	Under $15

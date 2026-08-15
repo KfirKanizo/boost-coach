@@ -1,0 +1,170 @@
+﻿System Design Document: BoostCoach.fit
+Lead Architect: Kfir Kanizo
+Date: August 2026
+
+
+1. Preface
+This Design Document presents the detailed design of the proposed information system, BoostCoach.fit. It consolidates all information required for the planning and development of the system, including system structure and architecture, database design, user interfaces, analytical models, technology selection, security planning, and the detailed work plan.
+
+
+2. Executive Summary
+This document translates the requirements of the BoostCoach.fit platform into a technical blueprint. The architecture utilizes an Edge AI approach to perform real-time computer vision processing directly on the client device using WebGL/WebAssembly. The backend is designed as a scalable Python API communicating with a polymorphic PostgreSQL database, utilizing JSONB to allow flexible expansions. The system is designed to handle thousands of concurrent interactions efficiently with near-zero variable vision-processing costs.
+
+
+3. Introduction and System Goals
+BoostCoach.fit is a zero-friction fitness SaaS platform designed for unmotivated professionals. The system utilizes local motion tracking and an LLM-powered virtual coach to remove the friction of manual workout logging. The technical goal is to build a highly responsive, cost-effective infrastructure that relies on edge computing for heavy tasks (video processing) and a centralized, rules-based engine for logic (Smart Swap) and data storage.
+
+
+4. System Architecture
+The system follows a decoupled, client-server architecture.
+
+
+* Client Tier (Mobile/Web): A Progressive Web App (PWA) wrapped in a Capacitor native container. This layer handles the UI and the heavy lifting of the MediaPipe pose-detection models utilizing the device's GPU/CPU.
+* Logic and Integration Tier (Backend): A RESTful API built with Python (FastAPI). It serves as the orchestrator for the Smart Swap rules engine and acts as a secure proxy to external LLM providers.
+* Data Tier (Cloud/Database): Managed PostgreSQL database (e.g., Supabase) utilizing Row Level Security (RLS) for data isolation.
+* External Interfaces: REST/gRPC connections to third-party LLM APIs (OpenAI/Anthropic) for processing workout summaries.
+________________
+5. Database Design
+The database structure is designed for high performance and polymorphic flexibility. Key tables include:
+
+
+* USERS:
+
+   * Description: Stores progressive profiling data and streak status.
+   * Fields: id (UUID, PK), email (String), current_streak (Int), weight, height.
+
+
+   * EXERCISES:
+
+      * Description: The deterministic catalog for the Smart Swap engine.
+      * Fields: id (UUID, PK), name_translations (JSONB - for i18n support), primary_muscle (String, Indexed), boost_type (String).
+
+
+      * DAILY_BOOSTS:
+
+         * Description: Contains the assigned tasks and actual execution metrics.
+         * Fields: id (UUID, PK), user_id (UUID, FK), target_metrics (JSONB), result_metrics (JSONB). Indexed on user_id and scheduled_date.
+
+
+         * SWAP_LOGS:
+
+            * Description: Records every exercise substitution.
+            * Fields: id (UUID, PK), user_id (UUID, FK), swap_reason (String).
+
+
+            * COACH_INTERACTIONS:
+
+               * Description: Stores LLM prompts and responses.
+               * Fields: id (UUID, PK), session_summary (JSONB), llm_feedback (Text).
+
+
+________________
+6. Software and Class Design
+The backend software structure is divided into modular layers to maintain separation of concerns.
+
+
+               * API Routers (Controllers): Endpoints grouped by domains (e.g., /api/boosts, /api/coach).
+
+
+               * Service Layer (Business Logic):
+
+                  * SwapEngineService: Contains the deterministic logic for matching exercises based on primary_muscle and environment_type.
+                  * LLMOrchestratorService: Formats the session_summary JSON into prompt structures and handles LLM API timeouts/fallbacks.
+
+
+                  * Frontend Architecture (Factory Pattern):
+
+                     * StudioFactory: A dynamic component renderer that reads the boost_type. If VISION_REP, it mounts the MediaPipeCameraComponent. If DURATION, it mounts the TimerComponent.
+
+
+7. User Interface Design
+The user interfaces are designed to minimize cognitive load.
+
+
+                     * Style & Typography: Dark mode default to convey a modern, technological feel. High-contrast typography for readability during physical activity.
+                     * Layout: Flat navigation via a Bottom Navigation Bar containing three primary tabs: The Flow, The Coach, and Profile/Config.
+                     * Interactive Controls:
+
+                        * The Energy Map: A horizontal scrolling mosaic where completed days glow in warm colors (yellow/orange).
+                        * The Studio HUD: A full-screen camera view with an overlay displaying a large, semi-transparent countdown timer and real-time skeleton tracking lines that shift between green (correct) and red (incorrect posture).
+
+
+________________
+8. Analytical Models/BI
+To monitor system health and business growth, specific dashboards and data analysis tools are defined.
+
+
+                        * Key Performance Indicators (KPIs): Daily Active Users (DAU), Boost Completion Rate (%), and Smart Swap Utilization Rate.
+                        * System Metrics: Average Edge-AI frame rate (FPS) reported from clients, and LLM API response latency.
+                        * Data Sources: Real-time querying of the DAILY_BOOSTS and SWAP_LOGS tables, visualized via a backend admin dashboard.
+
+
+9. Technologies and Development Tools
+The technological stack is optimized for rapid deployment, high performance, and minimal variable costs.
+
+
+                        * Backend: Python with FastAPI. Chosen for its asynchronous capabilities, high performance, and seamless handling of JSON data. Containerized using Docker for consistent deployments.
+                        * Frontend: React or Vue.js, wrapped in Capacitor. Chosen for the ability to write a single codebase that accesses native mobile APIs (Camera).
+                        * AI/Vision: Google MediaPipe (@mediapipe/pose) via WebAssembly. Chosen because it runs locally, eliminating server costs for video processing.
+                        * Database: PostgreSQL. Chosen for its robust JSONB support, allowing the polymorphic schema required for different boost_type metrics.
+10. Information Security
+Strict security protocols are implemented to protect user data and comply with organizational security policies.
+
+
+                        * Authentication: Managed via JWT tokens (e.g., Supabase Auth) utilizing OAuth providers (Google/Apple) to maintain zero-friction entry.
+                        * Access Control: Row Level Security (RLS) is enforced directly at the PostgreSQL database level, guaranteeing that API queries can only read or mutate data belonging to the authenticated user_id.
+                        * Data Privacy: The camera feed is strictly processed in the volatile memory of the client's browser/WebView. Video data is never written to disk or transmitted over the network.
+
+
+________________
+11. Testing Plan (High-Level)
+A comprehensive testing strategy ensures stability across various devices.
+
+
+                        * Unit Testing: Validating the deterministic logic of the SwapEngineService to ensure it never returns an exercise requiring unavailable equipment.
+                        * Integration Testing: Testing the API endpoints and database constraints (e.g., ensuring JSONB schemas are correctly parsed).
+                        * System/Performance Testing: Edge device load testing to verify that the MediaPipe models maintain a minimum of 30 FPS on mid-range smartphones without causing thermal throttling.
+12. Time and Resource Management Plan
+The development phases are broken down into manageable milestones.
+
+
+                        * Milestone 1 (Weeks 1-2): Database provisioning, Authentication setup, and CI/CD pipeline configuration (Docker).
+                        * Milestone 2 (Weeks 3-5): Frontend development focusing on the StudioFactory and integrating MediaPipe for accurate pose tracking.
+                        * Milestone 3 (Weeks 6-7): Backend API completion, implementing the Smart Swap engine, and integrating the LLM for the virtual coach.
+                        * Milestone 4 (Week 8): Capacitor wrapping, OS permissions handling, Beta testing, and production deployment.
+
+
+
+
+________________
+13. Offline-First Architecture
+Given that a portion of the target audience is expected to train in underground gyms, parking garages, or areas where cellular reception is weak or nonexistent, the system is engineered with an "Offline-First" approach to ensure an uninterrupted user experience.
+
+
+                        * Functional Continuity (Edge AI): The computer vision engine (MediaPipe) operates entirely on the edge device's hardware (WebAssembly/GPU). Therefore, the system does not require an active internet connection to open The Studio, detect movement, count repetitions, and provide real-time visual and audio feedback.
+                        * Local Data Storage (Caching): During periods of connectivity loss, Boost execution data (result_metrics) will be securely stored locally on the device (utilizing IndexedDB or SQLite via the Capacitor wrapper).
+                        * Background Sync: The application actively listens for Network Status events. Once a stable internet connection is re-established, the app will automatically and transparently push all locally cached workout data to the backend (POST /api/boosts/sync), refresh the Energy Map (Streak) status, and fetch any pending LLM feedback.
+                        * User Notifications: In offline mode, a subtle, non-intrusive indicator will appear at the top of the home screen (e.g., "Offline Mode - Progress saved locally") to reassure the user that their efforts and data will not be lost.
+
+
+________________
+14. Observability & Error Tracking (Telemetry)
+To guarantee a high Service Level Agreement (SLA) and identify performance bottlenecks proactively before they lead to negative App Store reviews, the system incorporates a comprehensive monitoring layer across both the client and server.
+
+
+                        * Frontend Crash & Performance Monitoring:
+
+                           * Integration of a monitoring platform (such as Sentry or LogRocket) to log JavaScript exceptions, Web Worker crashes, and camera access failures.
+                           * Automated telemetry collection, specifically tracking the average frame rate (FPS) achieved during Edge AI execution. This metric will be utilized to optimize the Smart Swap rules engine in future iterations (e.g., preventing the recommendation of high-speed exercises to users whose older devices struggle with camera rendering performance).
+
+
+                           * Backend APM (Application Performance Monitoring):
+
+                              * Integration of APM tools (such as Datadog or New Relic) to monitor FastAPI server response times and endpoint health.
+                              * Dedicated monitoring for outbound requests to the external Large Language Model (LLM) APIs, tracking timeout rates, connection failures, and token consumption for cost management.
+
+
+                              * Privacy by Design in Telemetry:
+
+                                 * All telemetry and analytical data collected will be strictly anonymized, containing only device identifiers, operating system versions, and raw performance metrics.
+                                 * The monitoring infrastructure is configured to actively block any transmission of Personally Identifiable Information (PII). Above all, the system will never collect, log, or transmit video frames or images from the user's workout sessions under any circumstances.

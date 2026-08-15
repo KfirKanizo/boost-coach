@@ -1,0 +1,89 @@
+﻿UI/UX Design Specification: BoostCoach.fit
+Lead Architect: Kfir Kanizo
+Date: August 2026
+
+
+1. Design System & Brand Identity
+The visual identity is crafted to reduce cognitive load and convey a modern, frictionless, and energetic experience. The design relies heavily on a dark theme to prevent glare during workouts and to make color-coded feedback instantly recognizable.
+
+
+Color Palette
+
+
+* Background (Primary): Deep Charcoal (#121212) - Used for the main app background to save battery and reduce eye strain.
+* Surface (Secondary): Dark Grey (#1E1E1E) - Used for cards, bottom sheets, and the navigation bar.
+* Action/Success (Accent): Neon Green (#00E676) - Used for the main "EXECUTE" button, completed Boost checkmarks, correct posture tracking lines, and success icons.
+* Energy Map (Streak): Warm Orange/Amber (#FFB300 to #FF6D00) - Used exclusively for the daily streak bubbles. The color becomes more vibrant as the user completes more Boosts.
+* Warning/Error: Crimson Red (#FF1744) - Used for incorrect posture feedback in the camera view and destructive actions.
+* Text (Primary): Pure White (#FFFFFF) - Used for high-contrast readability on dark backgrounds.
+* Text (Secondary): Light Grey (#B0B0B0) - Used for subtitles, timestamps, and placeholder text.
+
+
+Typography
+
+
+* English Font: Inter or Roboto - Selected for its clean, geometric, and highly legible structure on mobile screens.
+* Hebrew Font: Rubik - Matches the modern, rounded aesthetic of the English font.
+* Usage Rules: Heavy weights (Bold/Black) are reserved for the countdown timer and main headers. Regular weights are used for Coach chat bubbles and descriptions. The timer in the camera view uses a monospaced variant to prevent text jitter as numbers count down.
+
+
+________________
+2. Global Layout & Navigation Architecture
+The application employs a flat, hierarchy-free navigation model to ensure zero-friction usability.
+
+
+* Bottom Navigation Bar: A fixed, semi-transparent bar containing exactly three icons: The Flow (Home), The Coach (Chat), and Profile (Settings).
+* No Hamburger Menus: All primary actions are accessible within a single tap.
+* Environment Toggle: A pill-shaped toggle button pinned to the top of the Home screen, allowing seamless switching between environments (e.g., "Home" vs. "Gym").
+
+
+3. Core Screens & Interactive Controls
+3.1 The Flow (Home Screen)
+* The Energy Map (Header): A horizontal, horizontally scrollable mosaic of circular bubbles representing the last 14 days.
+* Energy Map States: Missed days are outlined in dim grey. Completed days glow with a solid Warm Orange fill. Today's bubble pulses gently until the first Boost is completed.
+* Boost Cards (Body): A vertical list of large, easily tappable cards representing the day's exercises. Each card displays the exercise name, target reps/time, and a "Swap" icon (🔄) on the right side.
+* Main Action Button: A massive, Floating Action Button (FAB) anchored above the navigation bar, filled with Neon Green, labeled "EXECUTE". Tapping this immediately opens the camera for the first pending Boost.
+
+
+3.2 Smart Swap (Bottom Sheet)
+* Trigger: The user taps the Swap icon on a Boost card.
+* Display: A smooth Bottom Sheet slides up over The Flow, dimming the background.
+* Content: A simple header ("Why swap?") and three large, pill-shaped buttons: "No Equipment", "Muscle Sore", and "Need Variety".
+* Interaction: Tapping an option triggers a quick haptic bump, immediately closes the sheet, and the original Boost card performs a 3D "flip" animation to reveal the newly assigned exercise.
+
+
+________________
+3.3 The Studio (Camera Execution HUD)
+This is a full-screen, immersive augmented reality view. The bottom navigation bar is hidden.
+
+
+* Skeleton Overlay: Thin, semi-transparent white lines connect the user's joints (landmarks).
+* Tracking States: When the user reaches the correct depth (e.g., bottom of a squat), the specific joint lines snap to Neon Green. If the back rounds dangerously, the spine line snaps to Crimson Red and flashes.
+* The HUD (Heads-Up Display): A massive, 120pt semi-transparent number sits centered at the top of the screen, counting down (e.g., "15", "14").
+* Progress Bar: A thin Neon Green line at the very bottom of the screen fills up as the set progresses from 0% to 100%.
+
+
+3.4 The Coach (AI Feedback Interface)
+* Layout: Resembles a modern messaging app like WhatsApp.
+* Summary Card: Pinned at the top of the chat, displaying today's total time and updated streak count.
+* Chat Bubbles: The AI's messages are aligned left (Dark Grey bubbles). The user's replies are aligned right (Neon Green bubbles).
+* Typing Indicator: Displays three animated dots when waiting for the LLM API response, reassuring the user that the system is processing.
+3.5 Overlays & Dynamic States (Popups & Warnings)
+* The Victory State (Success Overlay): Triggered immediately when the countdown timer hits 0. The background camera feed receives a heavy Gaussian blur. A massive, glowing Neon Green Checkmark (✓) springs into the center of the screen, accompanied by dynamic text (e.g., "Boost Completed! +1 Energy"). The overlay remains for 1.5 seconds before automatically routing the user back to The Flow.
+* Environmental Warning Toast: A semi-transparent, Crimson Red floating pill at the top of The Studio screen. Displays critical Edge AI errors without stopping the camera feed entirely (e.g., "⚠️ Low Light Detected" or "↔️ Step Back for Full Body Tracking").
+* Progressive Profiling Prompt: A subtle, slide-in card (Bottom-Up or Toast notification) appearing in The Flow or The Coach. It features a conversational question ("What's your current weight?") with a single numerical input field and a "Save" button, maintaining the Dark Grey (#1E1E1E) surface color.
+
+
+________________
+4. Gamification, Micro-interactions & Feedback Loops
+Feedback mechanisms are heavily utilized to build dopamine-driven habits without manual intervention.
+
+
+* Mid-Exercise Success: Upon completing a single valid repetition, the system plays a subtle, crisp "Pop" sound and triggers a light haptic vibration. The on-screen counter ticks down immediately.
+* Error State Notification: If form is broken, the counter pauses, a low-pitch "Buzzer" sound plays, the screen edges glow Crimson Red, and a text prompt appears briefly (e.g., "Keep your back straight!").
+* Set Completion (The Victory State):
+
+   * Trigger: The countdown reaches 0.
+   * Visuals: The camera feed blurs instantly. A massive, glowing Neon Green Checkmark (✓) scales up from the center of the screen with a slight bounce effect (spring animation).
+   * Audio/Haptics: A triumphant "Level Up" chime plays, accompanied by a heavy, double-pulse haptic vibration.
+   * Transition: After 1.5 seconds, the screen automatically slides down, returning the user to The Flow. The completed Boost card is now grayed out with a green checkmark, and the next Boost is cued up.

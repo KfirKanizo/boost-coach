@@ -1,0 +1,238 @@
+﻿API Design & Architecture Specification
+System Name: BoostCoach.fit
+Lead Architect: Kfir Kanizo
+Date: August 2026
+
+
+
+
+
+
+1. Architecture & Tech Stack
+
+
+The BoostCoach.fit backend is designed as a RESTful API utilizing a modern, high-performance tech stack.
+
+
+* Framework: FastAPI (Python) for asynchronous request handling and automatic OpenAPI documentation.
+* Database: PostgreSQL, leveraging robust relational integrity alongside JSONB for polymorphic data storage.
+* ORM & Validation: SQLAlchemy for database mapping and Pydantic for strict data validation and serialization.
+* Security: JWT-based authentication with Row Level Security (RLS) enforced at the database level.
+
+
+
+
+2. Database Design (SQLAlchemy Models)
+
+
+
+
+The database schema utilizes JSONB to future-proof the system, allowing different exercise types (Vision-based, Time-based, Distance-based) to coexist without requiring schema migrations.
+
+
+import uuid
+from sqlalchemy import Column, String, Integer, Float, Date, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import declarative_base, relationship
+from datetime import datetime
+
+
+Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String, unique=True, index=True, nullable=False)
+    current_streak = Column(Integer, default=0)
+    weight = Column(Float, nullable=True) # Progressive profiling metric
+    height = Column(Float, nullable=True) # Progressive profiling metric
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+    programs = relationship("TrainingProgram", back_populates="user")
+    boosts = relationship("DailyBoost", back_populates="user")
+
+
+class Exercise(Base):
+    __tablename__ = 'exercises'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name_translations = Column(JSONB, nullable=False) # e.g., {"he": "סקוואט", "en": "Squat"}
+    primary_muscle = Column(String, index=True, nullable=False)
+    movement_pattern = Column(String, nullable=False)
+    equipment_required = Column(String, index=True, nullable=False)
+    boost_type = Column(String, nullable=False) # VISION_REP, DURATION, DISTANCE_GPS
+
+
+class DailyBoost(Base):
+    __tablename__ = 'daily_boosts'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), index=True)
+    exercise_id = Column(UUID(as_uuid=True), ForeignKey('exercises.id'))
+    status = Column(String, default="pending") # States: pending, completed, skipped
+    
+    # Polymorphic metric fields:
+    target_metrics = Column(JSONB, nullable=False) # e.g., {"reps": 15} or {"duration_sec": 60}
+    result_metrics = Column(JSONB, nullable=True)  # Populated post-execution
+    scheduled_date = Column(Date, index=True, nullable=False)
+
+
+    user = relationship("User", back_populates="boosts")
+    exercise = relationship("Exercise")
+
+
+class SwapLog(Base):
+    __tablename__ = 'swap_logs'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    daily_boost_id = Column(UUID(as_uuid=True), ForeignKey('daily_boosts.id'))
+    new_exercise_id = Column(UUID(as_uuid=True), ForeignKey('exercises.id'))
+    swap_reason = Column(String, nullable=False) # e.g., "no_equipment"
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+
+
+3. Data Validation Schemas (Pydantic)
+
+
+
+
+These schemas define the strict API contract between the client app and the FastAPI backend.
+
+
+from pydantic import BaseModel, Field, UUID4
+from typing import Dict, Any, Optional
+from datetime import date
+
+
+# --- Base Entity Schemas ---
+class ExerciseResponse(BaseModel):
+    id: UUID4
+    name_translations: Dict[str, str]
+    primary_muscle: str
+    equipment_required: str
+    boost_type: str
+
+
+    class Config:
+        from_attributes = True
+
+
+# --- API Request Schemas ---
+class UserProfileUpdateRequest(BaseModel):
+    weight: Optional[float] = Field(None, description="User weight in kg")
+    height: Optional[float] = Field(None, description="User height in cm")
+
+
+class BoostCompleteRequest(BaseModel):
+    result_metrics: Dict[str, Any] = Field(
+        ..., 
+        description="Actual execution data from the edge AI (e.g., {'reps_completed': 15, 'duration_sec': 42})"
+    )
+
+
+class SwapRequest(BaseModel):
+    boost_id: UUID4
+    swap_reason: str = Field(..., description="Reason for swapping, e.g., 'no_equipment' or 'muscle_sore'")
+
+
+# --- API Response Schemas ---
+class BoostResponse(BaseModel):
+    id: UUID4
+    status: str
+    target_metrics: Dict[str, Any]
+    result_metrics: Optional[Dict[str, Any]]
+    scheduled_date: date
+    exercise: ExerciseResponse 
+
+
+    class Config:
+        from_attributes = True
+
+
+class CoachFeedbackResponse(BaseModel):
+    llm_feedback: str
+    new_streak: int
+    is_fallback: bool = Field(False, description="True if LLM timed out and local fallback was used")
+4. API Endpoints
+4.1 Authentication & User Profiling
+* POST /api/auth/login
+
+   * Description: Validates third-party OAuth token (Google/Apple), creates user if not exists, returns application JWT.
+
+
+   * GET /api/users/me
+
+      * Description: Fetches user profile, active environment, and current streak for the Energy Map.
+
+
+      * PATCH /api/users/me/profile
+
+         * Body: UserProfileUpdateRequest
+         * Description: Progressive profiling endpoint to seamlessly update body metrics without forms.
+
+
+4.2 Boosts & Execution
+         * GET /api/boosts/today
+
+            * Response: List[BoostResponse]
+            * Description: Fetches all pending and completed Boosts scheduled for the current date.
+
+
+            * PUT /api/boosts/{boost_id}/complete
+
+               * Body: BoostCompleteRequest
+               * Response: BoostResponse
+               * Description: Updates the Boost status to "completed" and saves the polymorphic result_metrics JSON payload calculated by the client's Edge AI.
+
+
+________________
+4.3 Engine Integration
+               * POST /api/engine/swap
+
+                  * Body: SwapRequest
+                  * Response: BoostResponse (Returns the newly assigned Boost)
+                  * Description: Triggers the deterministic Smart Swap engine to substitute a specific exercise based on environmental constraints.
+
+
+                  * POST /api/coach/feedback
+
+                     * Description: Aggregates today's completed Boost metrics, sends a synthesized prompt to the LLM, and returns personalized conversational feedback.
+
+
+
+
+5. Core Business Logic & Rules Engine
+5.1 Smart Swap Engine Logic
+The Smart Swap mechanism operates as a strict, deterministic rules engine to prevent impossible workout suggestions:
+
+
+                     1. Context Retrieval: Fetch the original DailyBoost, its associated Exercise, and the user's active TrainingProgram environment (e.g., 'Home Calisthenics').
+                     2. Constraint Mapping:
+
+                        * Match the primary_muscle of the original exercise.
+                        * Filter equipment_required against the user's active environment (e.g., exclude "Machines" if the environment is "Home").
+                        * Exclude the original exercise_id.
+
+
+                        3. Reason Adaptation (swap_reason):
+
+                           * If reason is "muscle_sore": The engine prioritizes a different movement_pattern targeting the same muscle to alter joint stress.
+                           * If reason is "no_equipment": The engine strictly filters for bodyweight equipment tags.
+
+
+                           4. Execution: Randomly select one exercise from the filtered pool, update the DailyBoost record, append a record to SWAP_LOGS for analytics, and return the new UI payload.
+________________
+
+
+5.2 LLM Orchestrator (The Coach)
+The LLM integration is designed for high reliability and zero-friction UX:
+
+
+                           1. Data Aggregation: Collect all result_metrics from today's completed Boosts alongside the user's current_streak.
+                           2. Prompt Assembly: Build a strict, system-level prompt injecting a specific persona (e.g., positive, concise). Inject the JSON payload of the day's achievements. The LLM is strictly instructed not to invent new exercises, but only to analyze the data.
+                           3. Resilience Protocol (Circuit Breaker):
+
+                              * The async HTTP call to the LLM API (OpenAI/Anthropic) is wrapped in a strict 3.0-second timeout.
+                              * If the API times out or fails, a try/except block catches the exception and immediately returns a cached, hardcoded generic response (e.g., "Incredible work today! Your energy map is glowing. See you tomorrow!") setting is_fallback=True. This guarantees the end-user never experiences a loading spinner.

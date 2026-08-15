@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "inverse-primary": "#cfbcff", "surface-container-low": "#1e1e1e", "surface-container-highest": "#1e1e1e", "error-container": "#ffdad6", "surface-tint": "#00e676", "surface-dim": "#121212", "on-surface": "#ffffff", "surface-container-high": "#1e1e1e", "secondary-fixed-dim": "#cdc0e9", "on-primary-container": "#00e676", "outline": "#b0b0b0", "surface-container-lowest": "#121212", "error": "#ba1a1a", "outline-variant": "#333333", "surface-container": "#1e1e1e", "primary-container": "#1e1e1e", "tertiary-fixed-dim": "#e7c365", "tertiary-container": "#1e1e1e", "on-primary": "#121212", "on-tertiary-container": "#00e676", "on-surface-variant": "#b0b0b0", "surface-bright": "#1e1e1e", "primary-fixed": "#e9ddff", "secondary": "#63597c", "on-tertiary-fixed-variant": "#594400", "on-secondary-fixed-variant": "#4b4263", "on-secondary-container": "#121212", "on-error-container": "#93000a", "on-error": "#ffffff", "surface-variant": "#1e1e1e", "secondary-fixed": "#e9ddff", "on-tertiary-fixed": "#241a00", "secondary-container": "#00e676", "on-secondary-fixed": "#1f1635", "on-secondary": "#ffffff", "tertiary-fixed": "#ffdf93", "on-background": "#ffffff", "primary": "#00e676", "inverse-surface": "#322f35", "on-primary-fixed-variant": "#4f378a", "on-tertiary": "#ffffff", "inverse-on-surface": "#f5eff7", "on-primary-fixed": "#22005d", "background": "#121212", "primary-fixed-dim": "#cfbcff", "surface": "#121212", "tertiary": "#00e676" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "fontFamily": { "headline": ["Public Sans"], "display": ["Public Sans"], "body": ["Public Sans"], "label": ["Public Sans"] } } } }</script><style>@layer base { body { overscroll-behavior: none; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } } ::-webkit-scrollbar { display: none; }</style></head><body class="bg-surface font-body text-on-surface"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-4 flex items-center justify-between"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center"><img alt="BoostCoach Logo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsSwl2ujP730YEzDyugNnZYEAb3vu7CES39-ucl8xuhVn_6eYr3RYHwmtcc-0G1Olk7JATyniaZoACr6y1X92j8Cw5UHzh2mRVVhQMPUXjSE21Fm_raQRfktQbZyk6yqBw187Hkfv7--Q1wojYPYx2aKhpZn482K3AsoAhLBmV9vr-7-3BuhbxmzrZtB0vp5dpy0g0HPRzxtxTxWKWYeKgjmwK4zQugNb8xp82S_LMxPoGylrct0Er7w"/></div><span class="text-lg font-headline font-bold tracking-tight text-primary uppercase">BoostCoach</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="min-h-screen pt-16 bg-surface"><div class="flex flex-col w-full h-full pb-[72px]">
+<!-- Pinned Summary Card -->
+<div class="p-4 bg-surface/90 backdrop-blur sticky top-0 z-10 shadow-[0_4px_16px_rgba(0,0,0,0.05)]">
+<div class="bg-surface-container rounded-xl p-4 flex items-center justify-between shadow-sm">
+<div class="flex flex-col">
+<span class="text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Today's Focus</span>
+<span class="text-lg font-bold text-on-surface">Endurance Run</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex flex-col items-end">
+<span class="text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Time</span>
+<span class="text-lg font-bold text-primary">45m</span>
+</div>
+<div class="w-px h-8 bg-outline-variant/30"></div>
+<div class="flex flex-col items-end">
+<span class="text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Streak</span>
+<div class="flex items-center gap-1 text-tertiary">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<span class="text-lg font-bold">12</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Chat History -->
+<div class="flex flex-col flex-grow px-4 py-6 gap-6 overflow-y-auto" id="chat-container">
+<!-- Date Divider -->
+<div class="flex items-center justify-center">
+<span class="px-3 py-1 bg-surface-container-high rounded-full text-xs font-medium text-on-surface-variant">Today, 8:45 AM</span>
+</div>
+<!-- Coach Bubble -->
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0 shadow-sm mt-auto">
+<span class="material-symbols-outlined text-on-primary-container text-[18px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-xs text-on-surface-variant ml-1">BoostCoach AI</span>
+<div class="bg-surface-container-high text-on-surface p-4 rounded-2xl rounded-bl-sm shadow-sm">
+<p class="text-sm leading-relaxed">Great job on finishing the 5K! Your average pace was <strong class="text-primary">5:30/km</strong>. Notice how your heart rate stayed mostly in Zone 2? That's excellent for building base endurance.</p>
+<div class="mt-3 p-3 bg-surface rounded-lg flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-tertiary-container/20 flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-tertiary text-[20px]" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+</div>
+<div>
+<p class="text-xs font-bold text-on-surface">Pace Improved</p>
+<p class="text-[10px] text-on-surface-variant">+5% faster than last week</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- User Bubble -->
+<div class="flex gap-3 max-w-[85%] self-end">
+<div class="flex flex-col gap-1 items-end">
+<div class="bg-primary text-on-primary p-4 rounded-2xl rounded-br-sm shadow-sm">
+<p class="text-sm leading-relaxed">Felt pretty good, but my calves were a bit tight towards the end.</p>
+</div>
+</div>
+</div>
+<!-- Coach Bubble -->
+<div class="flex gap-3 max-w-[85%]">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0 shadow-sm mt-auto">
+<span class="material-symbols-outlined text-on-primary-container text-[18px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-xs text-on-surface-variant ml-1">BoostCoach AI</span>
+<div class="bg-surface-container-high text-on-surface p-4 rounded-2xl rounded-bl-sm shadow-sm">
+<p class="text-sm leading-relaxed">Tight calves are common when increasing pace. Let's make sure we spend 5 minutes on focused stretching now. I've queued up a recovery routine for you.</p>
+<button class="mt-3 w-full py-2 px-4 bg-secondary-container text-on-secondary-container rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">play_circle</span>
+             Start Recovery Routine
+          </button>
+</div>
+</div>
+</div>
+<!-- Typing Indicator -->
+<div class="flex gap-3 max-w-[85%] transition-opacity duration-300" id="typing-indicator">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0 shadow-sm mt-auto">
+<span class="material-symbols-outlined text-on-primary-container text-[18px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="bg-surface-container-high p-4 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-1 h-12">
+<div class="w-2 h-2 rounded-full bg-on-surface-variant/50 animate-[bounce_1.4s_infinite_0s]"></div>
+<div class="w-2 h-2 rounded-full bg-on-surface-variant/50 animate-[bounce_1.4s_infinite_0.2s]"></div>
+<div class="w-2 h-2 rounded-full bg-on-surface-variant/50 animate-[bounce_1.4s_infinite_0.4s]"></div>
+</div>
+</div>
+</div>
+<!-- Input Area (Fixed to bottom, above nav) -->
+<div class="fixed bottom-16 left-0 w-full bg-surface/90 backdrop-blur p-4 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] z-20">
+<div class="flex items-end gap-2 bg-surface-container-highest rounded-3xl p-2 pl-4 transition-all focus-within:ring-2 ring-primary/50 shadow-inner">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors self-end mb-1">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+<textarea class="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none max-h-32 text-on-surface text-sm py-3 placeholder:text-on-surface-variant/60" id="chat-input" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" placeholder="Ask about your workout..." rows="1"></textarea>
+<button class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-sm hover:bg-primary/90 transition-colors flex-shrink-0 self-end">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  // Simple interaction for demo purposes
+  setTimeout(() => {
+    const indicator = document.getElementById('typing-indicator');
+    if(indicator) indicator.classList.remove('opacity-0');
+  }, 1000);
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/80 backdrop-blur-xl shadow-[0_-1px_8px_rgba(0,0,0,0.04)]" data-active-classes="text-primary"><div class="flex justify-around items-center h-16"><a class="flex flex-col items-center justify-center min-w-[64px] h-full text-on-surface-variant transition-colors" data-path="the-flow" href="#"><span class="material-symbols-outlined">home</span><span class="text-[10px] font-medium mt-1">The Flow</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[64px] h-full transition-colors text-primary" data-path="the-coach" href="#"><span class="material-symbols-outlined">forum</span><span class="text-[10px] font-medium mt-1">The Coach</span></a><a class="flex flex-col items-center justify-center min-w-[64px] h-full text-on-surface-variant transition-colors" data-path="profile" href="#"><span class="material-symbols-outlined">settings</span><span class="text-[10px] font-medium mt-1">Profile</span></a></div></nav>
+</body></html>

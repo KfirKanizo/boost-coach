@@ -1,0 +1,10 @@
+{
+  "name": "boostcoach",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "docker compose run --rm -T api pytest",
+    "test:frontend": "npm --prefix frontend run test"
+  }
+}

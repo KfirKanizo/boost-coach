@@ -1,0 +1,55 @@
+﻿Client-Side Architecture & Edge AI Specification
+System Name: BoostCoach.fit
+Module: Frontend & Computer Vision
+
+
+1. Frontend Framework & Native Wrapper
+The client application is built to deliver a native-like experience while maintaining a single codebase.
+
+
+* Core Framework: React.js (or Vue.js) utilizing functional components and hooks for reactive state management.
+* Native Container: Ionic Capacitor. This allows the web application to be packaged for iOS and Android, providing bridge APIs to access native device hardware (Camera, Haptics, Secure Storage) seamlessly.
+* UI Library: Tailwind CSS for rapid, utility-first styling, strictly adhering to the Dark Mode Design System established in the UI/UX specification.
+2. Multithreading Strategy (The Web Worker Pattern)
+Running Google MediaPipe directly on the main browser thread would cause the UI (timers, animations) to stutter and freeze. To achieve "Zero-Friction" performance, we implement a strict multithreading architecture.
+
+
+* Main UI Thread: Responsible only for rendering the React components, updating the HUD (Heads-Up Display), and playing audio/haptic feedback.
+* AI Web Worker (Background Thread): A dedicated Web Worker initialized when The Studio opens. It loads the MediaPipe WebAssembly (Wasm) files.
+* OffscreenCanvas: The video feed from the camera is drawn to an OffscreenCanvas. The frames are sent to the Web Worker via zero-copy memory transfer (Transferable objects), processed by MediaPipe, and only the lightweight coordinates (JSON containing 33 skeletal landmarks) are sent back to the Main Thread.
+
+
+________________
+3. Component Architecture: The Studio Factory
+The frontend utilizes the Factory Design Pattern to dynamically render the correct execution environment based on the database's polymorphic boost_type.
+
+
+* StudioFactory Component: The entry point when a user taps "EXECUTE".
+
+   * Condition A (boost_type === 'VISION_REP'): Mounts the MediaPipeCameraTracker. Requests camera permissions, initializes the Web Worker, and renders the skeletal overlay.
+   * Condition B (boost_type === 'DURATION'): Mounts the SimpleTimerTracker. Does not request camera permissions. Renders a full-screen countdown circle (e.g., for Planks).
+   * Condition C (Future - DISTANCE_GPS): Mounts the GeolocationTracker. Prompts for background location and renders a map interface.
+
+
+4. Real-Time Data Flow (Frame-by-Frame Processing)
+The exact pipeline for processing a single repetition:
+
+
+   1. Capture: The Capacitor Camera plugin streams the MediaStream to a hidden HTML <video> element.
+   2. Process: Frames are continuously dispatched to the AI Web Worker at ~30 FPS.
+   3. Analyze (Edge AI): MediaPipe identifies the pose landmarks.
+   4. Kinematic Logic: A lightweight JavaScript math function calculates joint angles (e.g., knee angle < 90 degrees for a squat).
+   5. State Update: If a full range of motion is detected, the reps_remaining state is decremented.
+   6. Feedback (Haptics): The Main Thread triggers Haptics.impact({ style: Light }) via Capacitor and flashes the UI green.
+
+
+5. Hardware Integration & OS Permissions
+To ensure the app does not crash or confuse the user, hardware access is strictly managed:
+
+
+   * Permission Gates: Camera permissions are only requested the exact moment the user taps "EXECUTE" for their very first VISION_REP Boost. They are not requested during onboarding (preserving the zero-friction entry).
+   * Haptics API: Integrated using @capacitor/haptics. Differentiated feedback includes:
+
+      * ImpactStyle.Light: For a single successful repetition.
+      * ImpactStyle.Heavy (Double Pulse): For completing the entire Boost.
+      * Keep-Awake API: @capacitor/keep-awake is invoked the moment The Studio mounts to prevent the phone screen from dimming or locking while the user is standing 2 meters away performing their exercise.
