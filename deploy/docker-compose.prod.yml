@@ -1,14 +1,21 @@
 # Production stack: Nginx (TLS reverse proxy) + Let's Encrypt + FastAPI + PostgreSQL.
 #
-#   cp .env.prod.example .env          # then fill in real secrets
-#   docker compose up -d nginx         # boot the reverse proxy (placeholder cert)
-#   docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+# Host ports 80/443 are owned by the existing n8n stack, so BoostCoach binds
+# 8080 (HTTP) and 8443 (HTTPS) instead. TLS is provisioned with the Let's
+# Encrypt DNS-01 challenge — no port 80 required:
+#
+#   cp .env.prod.example .env                     # then fill in real secrets
+#   docker compose up -d                          # boots nginx on 8080/8443 (placeholder cert)
+#   docker compose run --rm certbot certonly --manual --preferred-challenges dns-01 \
 #       -d fit.idone.co.il --email ops@fit.idone.co.il --agree-tos --no-eff-email
-#   docker compose exec nginx nginx -s reload   # swap placeholder -> real cert
-#   docker compose up -d               # bring up the whole stack
+#       # -> add the printed TXT record at your DNS provider, wait for
+#       #    propagation (dig +short TXT _acme-challenge.fit.idone.co.il @1.1.1.1),
+#       #    then press Enter. Remove the TXT record afterwards.
+#   docker compose exec nginx nginx -s reload     # swap placeholder -> real cert
 #   docker compose run --rm api alembic upgrade head
 #
-# Auto-renewal (host cron — certbot renews ~30 days before expiry):
+# Auto-renewal (host cron): use a certbot DNS plugin (see deploy/certbot/) so
+# renewal is unattended:
 #   0 3 * * * cd /opt/boostcoach/deploy && docker compose run --rm certbot renew --quiet && docker exec boostcoach_nginx nginx -s reload
 
 services:
@@ -18,25 +25,26 @@ services:
     container_name: boostcoach_nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
+      - "8443:443"
     volumes:
       - certbot_conf:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
     depends_on:
       - api
     networks:
       - boostcoach
 
   # Not started by `up -d` (profile-gated). Invoked explicitly for the initial
-  # issuance above and by the cron renewal job.
+  # DNS-01 issuance above and by the cron renewal job. To enable unattended
+  # renewal, swap `image` for `build: ./certbot` (DNS-provider plugin) and
+  # mount your provider credentials (see deploy/certbot/README notes in the
+  # Phase 12.1 runbook).
   certbot:
     image: certbot/certbot:latest
     container_name: boostcoach_certbot
     profiles: ["certbot"]
     volumes:
       - certbot_conf:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
 
   db:
     image: postgres:16-alpine
@@ -82,7 +90,6 @@ services:
 volumes:
   pgdata:
   certbot_conf:
-  certbot_www:
 
 networks:
   boostcoach:

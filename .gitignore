@@ -2,6 +2,9 @@
 .env
 .env.local
 
+# Certbot DNS provider credentials (real token, never commit — use the .example)
+deploy/certbot/cloudflare.ini
+
 # Python
 __pycache__/
 *.py[cod]

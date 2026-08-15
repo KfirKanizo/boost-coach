@@ -1,0 +1,4 @@
+# Cloudflare API token for certbot-dns-cloudflare (chmod 600, never commit).
+# Create a token with Zone:DNS:Edit permission for the fit.idone.co.il zone at
+# https://dash.cloudflare.com/profile/api-tokens
+dns_cloudflare_api_token = <your-api-token-here>
