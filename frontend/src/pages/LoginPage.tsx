@@ -38,8 +38,14 @@ export function LoginPage() {
     setError(null);
     try {
       if (Capacitor.isNativePlatform()) {
-        const result = await SocialLogin.login({ provider: 'google' });
-        const idToken = result.result?.idToken;
+        const res = await SocialLogin.login({
+          provider: 'google',
+          options: { scopes: ['email', 'profile'] },
+        });
+        if (res.provider !== 'google' || res.result.responseType !== 'online') {
+          throw new Error('Unexpected login response');
+        }
+        const idToken = res.result.idToken;
         if (!idToken) throw new Error('No ID token received');
         await api.googleLogin(idToken);
       } else {

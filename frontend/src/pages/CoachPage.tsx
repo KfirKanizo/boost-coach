@@ -1,11 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  AlertTriangle,
-  ChevronDown,
-  Send,
-  Sparkles,
-  User,
-} from 'lucide-react';
+import { AlertTriangle, Send, Sparkles } from 'lucide-react';
 import type { UserProfile } from '../api/client';
 import { api } from '../api/client';
 

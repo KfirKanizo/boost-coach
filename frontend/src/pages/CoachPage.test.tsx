@@ -28,9 +28,13 @@ function profile(overrides: Partial<UserProfile> = {}): UserProfile {
   return {
     id: 'u-1',
     email: 'test@boostcoach.fit',
+    gender: null,
+    age: null,
     weight: 70,
     height: 175,
     current_streak: 3,
+    fitness_goals: null,
+    fitness_styles: null,
     ...overrides,
   };
 }
