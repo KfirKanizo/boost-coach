@@ -1,4 +1,4 @@
-"""JWT signing/verification helpers (PyJWT).
+"""JWT signing/verification helpers (PyJWT) and password hashing (bcrypt).
 
 Access tokens are HS256-signed with the application ``SECRET_KEY``. The
 ``sub`` claim carries the user's UUID; the ``type`` claim disambiguates from
@@ -8,10 +8,27 @@ future refresh tokens.
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import jwt
 from jwt import InvalidTokenError
 
 from app.core.config import settings
+
+
+# ── Password hashing ────────────────────────────────────────────────────
+
+
+def hash_password(password: str) -> str:
+    """Return a bcrypt hash of *password*."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    """Check *plain* against a bcrypt *hashed* value."""
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+
+# ── JWT helpers ─────────────────────────────────────────────────────────
 
 
 def create_access_token(

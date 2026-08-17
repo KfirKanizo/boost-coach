@@ -30,6 +30,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(
         String, unique=True, index=True, nullable=False
     )
+    hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
     current_streak: Mapped[int] = mapped_column(Integer, default=0)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     weight: Mapped[float | None] = mapped_column(Float, nullable=True)
