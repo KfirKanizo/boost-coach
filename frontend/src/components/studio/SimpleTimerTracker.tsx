@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Flag, Pause, Timer, Trophy } from 'lucide-react';
+import { Flag, Pause, Play, Timer, Trophy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { api } from '../../api/client';
@@ -14,7 +14,7 @@ interface SimpleTimerTrackerProps {
   boostId?: string;
 }
 
-type TrackerStatus = 'active' | 'done';
+type TrackerStatus = 'active' | 'paused' | 'done';
 
 /** How long the "Set complete" victory overlay stays up before navigating home. */
 const VICTORY_DELAY_MS = 1500;
@@ -22,10 +22,10 @@ const VICTORY_DELAY_MS = 1500;
 /**
  * Timer-based execution environment (e.g., planks).
  *
- * Main-thread countdown placeholder. No camera permission is required.
- * Completing the countdown or tapping "Finish Set" reports the session via
- * completeBoost, shows the victory overlay, and (in a real session) returns
- * to The Flow after the victory delay.
+ * Main-thread countdown with a working Pause toggle. No camera permission
+ * is required. Completing the countdown or tapping "Finish Set" reports the
+ * session via completeBoost, shows the victory overlay, and (in a real
+ * session) returns to The Flow after the victory delay.
  */
 export function SimpleTimerTracker({
   initialSeconds = 60,
@@ -53,6 +53,7 @@ export function SimpleTimerTracker({
     }
   }, [boostId, initialSeconds]);
 
+  // Countdown — only ticks when active (not paused or done).
   useEffect(() => {
     if (status !== 'active') return;
     const id = window.setInterval(() => {
@@ -70,6 +71,10 @@ export function SimpleTimerTracker({
     const id = window.setTimeout(() => navigate('/'), VICTORY_DELAY_MS);
     return () => window.clearTimeout(id);
   }, [status, boostId, navigate]);
+
+  const togglePause = () => {
+    setStatus((current) => (current === 'active' ? 'paused' : 'active'));
+  };
 
   return (
     <div className="relative flex min-h-[70vh] w-full flex-col overflow-hidden rounded-card bg-surface">
@@ -93,7 +98,7 @@ export function SimpleTimerTracker({
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
           <span className="flex items-center gap-2 rounded-full bg-white/5 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-ash">
             <Timer size={14} className="text-neon" />
-            Duration Boost
+            {status === 'paused' ? 'Paused' : 'Duration Boost'}
           </span>
 
           {/* Massive countdown */}
@@ -104,10 +109,11 @@ export function SimpleTimerTracker({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              aria-label="Pause"
+              aria-label={status === 'paused' ? 'Resume' : 'Pause'}
+              onClick={togglePause}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-paper backdrop-blur transition-transform active:scale-95"
             >
-              <Pause size={20} />
+              {status === 'paused' ? <Play size={20} /> : <Pause size={20} />}
             </button>
             <button
               type="button"

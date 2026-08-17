@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Loader2, Play, RefreshCw } from 'lucide-react';
+import { Check, Loader2, Play, RefreshCw, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { BoostCard } from '../components/flow/BoostCard';
 import { EnergyMap } from '../components/flow/EnergyMap';
 import { SwapSheet } from '../components/flow/SwapSheet';
 import { StudioFactory } from '../components/studio/StudioFactory';
-import type { Boost, BoostType } from '../types/boost';
+import type { Boost, BoostType, Exercise } from '../types/boost';
 import type { SwapReason } from '../types/swap';
 
 const DEMO_TYPES: { label: string; value: BoostType }[] = [
@@ -24,6 +24,10 @@ export function FlowPage() {
   const [error, setError] = useState<string | null>(null);
   const [swapBoostId, setSwapBoostId] = useState<string | null>(null);
 
+  // Exercise catalogue
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+
   const loadBoosts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -37,9 +41,19 @@ export function FlowPage() {
     }
   }, []);
 
+  const loadExercises = useCallback(async () => {
+    try {
+      const data = await api.getExercises();
+      setExercises(data);
+    } catch {
+      // Silent — exercise picker degrades gracefully when unavailable.
+    }
+  }, []);
+
   useEffect(() => {
     void loadBoosts();
-  }, [loadBoosts]);
+    void loadExercises();
+  }, [loadBoosts, loadExercises]);
 
   // Re-fetch whenever the window regains focus (e.g. returning from the
   // studio or from the background) so the Energy Map and cards reflect the
@@ -106,6 +120,63 @@ export function FlowPage() {
       </div>
 
       <EnergyMap completedDays={completedToday} />
+
+      {/* Exercise Picker — horizontal scroll */}
+      {exercises.length > 0 && (
+        <div className="mt-8 px-4">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
+            Pick an Exercise
+          </h2>
+          <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
+            {exercises.map((ex) => {
+              const name = ex.name_translations.en ?? ex.id;
+              const isActive = selectedExercise?.id === ex.id;
+              return (
+                <button
+                  key={ex.id}
+                  type="button"
+                  onClick={() => setSelectedExercise(isActive ? null : ex)}
+                  className={`flex-shrink-0 rounded-card px-4 py-3 text-left transition-colors ${
+                    isActive
+                      ? 'bg-neon text-ink'
+                      : 'bg-surface text-paper hover:bg-white/10'
+                  }`}
+                >
+                  <span className="block whitespace-nowrap text-sm font-semibold">
+                    {name}
+                  </span>
+                  <span className="mt-0.5 block whitespace-nowrap text-[10px] uppercase tracking-widest text-ash">
+                    {ex.equipment_required} · {ex.boost_type.replace('_', ' ')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Inline execution panel — appears when an exercise is selected */}
+      {selectedExercise && (
+        <div className="mt-6 px-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-ash">
+              {selectedExercise.name_translations.en ?? 'Exercise'}
+            </h2>
+            <button
+              type="button"
+              aria-label="Close exercise"
+              onClick={() => setSelectedExercise(null)}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:text-paper"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <StudioFactory
+            boostType={selectedExercise.boost_type}
+            durationSec={60}
+          />
+        </div>
+      )}
 
       <div className="mt-8 flex flex-col gap-4 px-4">
         <h2 className="text-sm font-bold uppercase tracking-wider text-ash">

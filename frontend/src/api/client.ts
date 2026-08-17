@@ -6,7 +6,7 @@
  * against a remote host); it defaults to the local dev server.
  */
 
-import type { Boost } from '../types/boost';
+import type { Boost, Exercise } from '../types/boost';
 import type { SwapReason } from '../types/swap';
 import { enqueueBoost } from '../services/offlineQueue';
 import { getAuthToken, setAuthToken } from '../services/tokenStorage';
@@ -19,6 +19,11 @@ export interface LoginResponse {
   token_type: string;
 }
 
+export interface RegisterResponse {
+  id: string;
+  email: string;
+}
+
 export interface CoachFeedback {
   llm_feedback: string;
   new_streak: number;
@@ -29,21 +34,35 @@ export interface CoachFeedback {
 export interface UserProfile {
   id: string;
   email: string;
+  gender: string | null;
+  age: number | null;
   weight: number | null;
   height: number | null;
   current_streak: number;
+  fitness_goals: string[] | null;
+  fitness_styles: string[] | null;
 }
 
-/** Progressive profiling patch — only the provided fields are updated. */
+/** Profile update patch — only the provided fields are updated. */
 export interface UserProfileUpdateRequest {
+  gender?: string;
+  age?: number;
   weight?: number;
   height?: number;
+  fitness_goals?: string[];
+  fitness_styles?: string[];
 }
 
 /** Payload queued for offline flush via POST /boosts/sync. */
 export interface SyncItem {
   boost_id: string;
   result_metrics: Record<string, unknown>;
+}
+
+/** Response from POST /coach/chat. */
+export interface CoachChatResponse {
+  reply: string;
+  is_fallback: boolean;
 }
 
 /**
@@ -113,6 +132,24 @@ export const api = {
     return response;
   },
 
+  /** POST /auth/register — create a new account with email + password. */
+  async register(email: string, password: string): Promise<RegisterResponse> {
+    return request<RegisterResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  },
+
+  /** POST /auth/google — exchange a Google ID token for a JWT and persist it. */
+  async googleLogin(idToken: string): Promise<LoginResponse> {
+    const response = await request<LoginResponse>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ id_token: idToken }),
+    });
+    await setAuthToken(response.access_token);
+    return response;
+  },
+
   /** GET /boosts/today — today's scheduled boosts for the user. */
   getTodayBoosts(): Promise<Boost[]> {
     return request<Boost[]>('/boosts/today');
@@ -177,6 +214,19 @@ export const api = {
     return request<{ synced: number }>('/boosts/sync', {
       method: 'POST',
       body: JSON.stringify(items),
+    });
+  },
+
+  /** GET /exercises — full exercise catalogue. */
+  getExercises(): Promise<Exercise[]> {
+    return request<Exercise[]>('/exercises');
+  },
+
+  /** POST /coach/chat — free-form conversational chat with the coach. */
+  sendCoachChat(message: string): Promise<CoachChatResponse> {
+    return request<CoachChatResponse>('/coach/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
     });
   },
 };

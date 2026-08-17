@@ -3,13 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
-import type { Boost } from '../types/boost';
+import type { Boost, Exercise } from '../types/boost';
 import { FlowPage } from './FlowPage';
 
 vi.mock('../api/client', () => ({
   api: {
     getTodayBoosts: vi.fn(),
     swapBoost: vi.fn(),
+    getExercises: vi.fn(),
   },
 }));
 
@@ -52,10 +53,27 @@ function makeBoost(overrides: Partial<Boost> = {}): Boost {
   };
 }
 
+function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
+  return {
+    id: 'e-10',
+    name_translations: { en: 'Push-Up', he: 'שכיבות שמיכה' },
+    primary_muscle: 'chest',
+    movement_pattern: 'push',
+    equipment_required: 'bodyweight',
+    boost_type: 'VISION_REP',
+    ...overrides,
+  };
+}
+
 describe('FlowPage', () => {
   beforeEach(() => {
     vi.mocked(api.getTodayBoosts).mockReset();
     vi.mocked(api.swapBoost).mockReset();
+    vi.mocked(api.getExercises).mockReset();
+    vi.mocked(api.getExercises).mockResolvedValue([
+      makeExercise({ id: 'e-10', name_translations: { en: 'Push-Up' }, boost_type: 'VISION_REP' }),
+      makeExercise({ id: 'e-11', name_translations: { en: 'Plank' }, boost_type: 'DURATION', movement_pattern: 'isometric' }),
+    ]);
   });
 
   it('shows a loading state then renders the fetched boosts', async () => {
@@ -274,5 +292,41 @@ describe('FlowPage', () => {
         callsBefore,
       );
     });
+  });
+
+  it('renders the exercise picker when exercises are fetched', async () => {
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+
+    renderFlow();
+
+    expect(await screen.findByText('Pick an Exercise')).toBeInTheDocument();
+    expect(screen.getByText('Push-Up')).toBeInTheDocument();
+    expect(screen.getByText('Plank')).toBeInTheDocument();
+  });
+
+  it('shows inline StudioFactory when an exercise is selected', async () => {
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+
+    renderFlow();
+    await screen.findByText('Pick an Exercise');
+
+    // Click the exercise picker button
+    const pushUpBtn = screen.getByRole('button', { name: /push-up/i });
+    await userEvent.click(pushUpBtn);
+
+    // Close button confirms the inline panel appeared
+    expect(screen.getByRole('button', { name: /close exercise/i })).toBeInTheDocument();
+  });
+
+  it('hides the inline execution when close is clicked', async () => {
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+
+    renderFlow();
+    await screen.findByText('Pick an Exercise');
+
+    await userEvent.click(screen.getByRole('button', { name: /push-up/i }));
+    await userEvent.click(screen.getByRole('button', { name: /close exercise/i }));
+
+    expect(screen.queryByRole('button', { name: /close exercise/i })).not.toBeInTheDocument();
   });
 });

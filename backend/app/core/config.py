@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
+    # --- Google OAuth2 ---------------------------------------------------
+    google_client_id: str = Field(
+        default="408983234494-j55u6qlk8d476pfn75ur9m5f5annefjm.apps.googleusercontent.com",
+        validation_alias=AliasChoices("GOOGLE_CLIENT_ID"),
+        description="Google OAuth2 web client ID for ID token verification.",
+    )
+
     # --- Observability (Sentry, optional) -------------------------------
     # Leave unset to run with error tracking fully disabled (local dev,
     # CI, tests). Privacy by design: `send_default_pii` stays False and a

@@ -30,12 +30,20 @@ async def update_profile(
 ) -> UserProfileResponse:
     """Apply progressive profiling updates.
 
-    ``None`` values leave the existing metric untouched so the chat can send
-    exactly one field per question without clobbering the other.
+    ``None`` values leave the existing field untouched so partial updates
+    (e.g. from the onboarding wizard) don't clobber other data.
     """
+    if payload.gender is not None:
+        user.gender = payload.gender
+    if payload.age is not None:
+        user.age = payload.age
     if payload.weight is not None:
         user.weight = payload.weight
     if payload.height is not None:
         user.height = payload.height
+    if payload.fitness_goals is not None:
+        user.fitness_goals = payload.fitness_goals
+    if payload.fitness_styles is not None:
+        user.fitness_styles = payload.fitness_styles
     await db.commit()
     return UserProfileResponse.model_validate(user)

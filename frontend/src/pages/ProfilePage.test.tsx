@@ -8,7 +8,10 @@ import { clearAuthToken } from '../services/tokenStorage';
 import { ProfilePage } from './ProfilePage';
 
 vi.mock('../api/client', () => ({
-  api: { getUserProfile: vi.fn() },
+  api: {
+    getUserProfile: vi.fn(),
+    updateUserProfile: vi.fn(),
+  },
 }));
 
 vi.mock('../services/tokenStorage', () => ({
@@ -19,9 +22,13 @@ function profile(overrides: Partial<UserProfile> = {}): UserProfile {
   return {
     id: 'u-1',
     email: 'test@boostcoach.fit',
+    gender: null,
+    age: null,
     weight: 70,
     height: 175,
     current_streak: 3,
+    fitness_goals: null,
+    fitness_styles: null,
     ...overrides,
   };
 }
@@ -40,6 +47,7 @@ function renderProfile() {
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.mocked(api.getUserProfile).mockReset();
+    vi.mocked(api.updateUserProfile).mockReset();
     vi.mocked(clearAuthToken).mockReset();
   });
 
@@ -49,8 +57,8 @@ describe('ProfilePage', () => {
     renderProfile();
 
     expect(await screen.findByText('test@boostcoach.fit')).toBeInTheDocument();
-    expect(screen.getByText('70')).toBeInTheDocument();
-    expect(screen.getByText('175')).toBeInTheDocument();
+    expect(screen.getByText('70 kg')).toBeInTheDocument();
+    expect(screen.getByText('175 cm')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('Day streak')).toBeInTheDocument();
   });
@@ -63,7 +71,7 @@ describe('ProfilePage', () => {
     renderProfile();
 
     expect(await screen.findByText('test@boostcoach.fit')).toBeInTheDocument();
-    expect(screen.getAllByText('—')).toHaveLength(2);
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
   it('clears the token and navigates to /login on logout', async () => {
@@ -94,5 +102,57 @@ describe('ProfilePage', () => {
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
 
     expect(await screen.findByText('test@boostcoach.fit')).toBeInTheDocument();
+  });
+
+  it('enters edit mode when Edit is clicked', async () => {
+    vi.mocked(api.getUserProfile).mockResolvedValue(profile());
+
+    renderProfile();
+    await screen.findByText('test@boostcoach.fit');
+
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+
+    // Should show sliders and save button; view-mode text should be gone
+    expect(screen.queryByText('Your details')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+    expect(screen.getByText('Gender')).toBeInTheDocument();
+  });
+
+  it('saves profile changes and exits edit mode', async () => {
+    vi.mocked(api.getUserProfile).mockResolvedValue(profile());
+    vi.mocked(api.updateUserProfile).mockResolvedValue(
+      profile({ gender: 'male', age: 28, weight: 75 }),
+    );
+
+    renderProfile();
+    await screen.findByText('test@boostcoach.fit');
+
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+    await screen.findByRole('button', { name: /save/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(api.updateUserProfile).toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: /edit/i })).toBeInTheDocument();
+  });
+
+  it('shows onboarding data in view mode when present', async () => {
+    vi.mocked(api.getUserProfile).mockResolvedValue(
+      profile({
+        gender: 'female',
+        age: 25,
+        fitness_goals: ['weight_loss', 'endurance'],
+        fitness_styles: ['gym'],
+      }),
+    );
+
+    renderProfile();
+    await screen.findByText('test@boostcoach.fit');
+
+    expect(screen.getByText('female', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('25 yrs')).toBeInTheDocument();
+    expect(screen.getByText('weight loss')).toBeInTheDocument();
+    expect(screen.getByText('endurance')).toBeInTheDocument();
+    expect(screen.getByText('gym')).toBeInTheDocument();
   });
 });

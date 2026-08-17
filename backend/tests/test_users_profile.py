@@ -30,6 +30,10 @@ async def test_me_returns_profile(async_client, db_session) -> None:
     assert body["weight"] == 70.0
     assert body["height"] == 175.0
     assert body["current_streak"] == 0
+    assert body["gender"] is None
+    assert body["age"] is None
+    assert body["fitness_goals"] is None
+    assert body["fitness_styles"] is None
 
 
 async def test_me_returns_null_metrics_when_unset(async_client, db_session) -> None:
@@ -132,3 +136,93 @@ async def test_patch_profile_requires_a_user(async_client) -> None:
 
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Not authenticated"
+
+
+async def test_patch_profile_updates_onboarding_fields(async_client, db_session) -> None:
+    user = await _seed_user(db_session)
+
+    headers = await login_headers(async_client, db_session)
+    resp = await async_client.patch(
+        "/api/v1/users/me/profile",
+        headers=headers,
+        json={
+            "gender": "male",
+            "age": 28,
+            "fitness_goals": ["weight_loss", "endurance"],
+            "fitness_styles": ["gym", "running"],
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["gender"] == "male"
+    assert body["age"] == 28
+    assert body["fitness_goals"] == ["weight_loss", "endurance"]
+    assert body["fitness_styles"] == ["gym", "running"]
+
+    await db_session.refresh(user)
+    assert user.gender == "male"
+    assert user.age == 28
+    assert user.fitness_goals == ["weight_loss", "endurance"]
+    assert user.fitness_styles == ["gym", "running"]
+
+
+async def test_patch_profile_partial_onboarding_does_not_clobber(
+    async_client, db_session
+) -> None:
+    user = await _seed_user(
+        db_session,
+        gender="female",
+        age=30,
+        fitness_goals=["muscle_gain"],
+        fitness_styles=["yoga"],
+    )
+
+    headers = await login_headers(async_client, db_session)
+    resp = await async_client.patch(
+        "/api/v1/users/me/profile",
+        headers=headers,
+        json={"age": 31, "weight": 65.0},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["gender"] == "female"
+    assert body["age"] == 31
+    assert body["fitness_goals"] == ["muscle_gain"]
+    assert body["fitness_styles"] == ["yoga"]
+    assert body["weight"] == 65.0
+
+
+async def test_patch_profile_replaces_goals_list(async_client, db_session) -> None:
+    user = await _seed_user(db_session, fitness_goals=["old_goal"])
+
+    headers = await login_headers(async_client, db_session)
+    resp = await async_client.patch(
+        "/api/v1/users/me/profile",
+        headers=headers,
+        json={"fitness_goals": ["new_goal", "another_goal"]},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["fitness_goals"] == ["new_goal", "another_goal"]
+
+    await db_session.refresh(user)
+    assert user.fitness_goals == ["new_goal", "another_goal"]
+
+
+async def test_patch_profile_empty_goals_list(async_client, db_session) -> None:
+    user = await _seed_user(db_session, fitness_goals=["old_goal"])
+
+    headers = await login_headers(async_client, db_session)
+    resp = await async_client.patch(
+        "/api/v1/users/me/profile",
+        headers=headers,
+        json={"fitness_goals": []},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["fitness_goals"] == []
+
+    await db_session.refresh(user)
+    assert user.fitness_goals == []

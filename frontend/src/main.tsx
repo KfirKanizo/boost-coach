@@ -8,6 +8,8 @@ import {
   useNavigationType,
 } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
+import { Capacitor } from '@capacitor/core';
+import { SocialLogin } from '@capgo/capacitor-social-login';
 
 import App from './App';
 import { ErrorBoundary } from './components/errors/ErrorBoundary';
@@ -32,9 +34,6 @@ function initSentry(): void {
     dsn,
     environment: import.meta.env.MODE,
     integrations: [
-      // Captures route changes as transactions for react-router v7 (used by
-      // the HashRouter in this app). Any error thrown while rendering a route
-      // surfaces as a routing error to Sentry via the ErrorBoundary below.
       Sentry.reactRouterBrowserTracingIntegration({
         useEffect,
         useLocation,
@@ -55,6 +54,21 @@ function initSentry(): void {
 }
 
 initSentry();
+
+const GOOGLE_WEB_CLIENT_ID =
+  '408983234494-j55u6qlk8d476pfn75ur9m5f5annefjm.apps.googleusercontent.com';
+
+async function initGoogleAuth(): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    await SocialLogin.initialize({
+      google: { webClientId: GOOGLE_WEB_CLIENT_ID },
+    });
+  }
+}
+
+initGoogleAuth().catch(() => {
+  // Non-fatal: Google Sign-In will not be available on this platform.
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

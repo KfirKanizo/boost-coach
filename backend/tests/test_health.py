@@ -19,6 +19,8 @@ async def test_api_v1_routes_are_mounted(async_client) -> None:
         "/api/v1/boosts/{boost_id}/complete",
         "/api/v1/engine/swap",
         "/api/v1/coach/feedback",
+        "/api/v1/coach/chat",
+        "/api/v1/exercises",
         "/health",
     }
     assert expected.issubset(paths.keys())

@@ -6,6 +6,7 @@ import { AppLayout } from './layout/AppLayout';
 import { CoachPage } from './pages/CoachPage';
 import { FlowPage } from './pages/FlowPage';
 import { LoginPage } from './pages/LoginPage';
+import { OnboardingWizard } from './pages/OnboardingWizard';
 import { ProfilePage } from './pages/ProfilePage';
 import { StudioPage } from './pages/StudioPage';
 
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<AuthGuard />}>
         <Route path="/" element={<AppShell />} />
+        <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/studio/:boost_id" element={<StudioPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

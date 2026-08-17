@@ -20,3 +20,7 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     id: str
     email: str
+
+
+class GoogleLoginRequest(BaseModel):
+    id_token: str = Field(..., description="Google OAuth2 ID token")

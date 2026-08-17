@@ -36,3 +36,35 @@
     scrollbar-width: none;
   }
 }
+
+/* Custom range slider — dark-theme styled */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #00e676;
+  border: 3px solid #1e1e1e;
+  box-shadow: 0 0 12px rgba(0, 230, 118, 0.4);
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #00e676;
+  border: 3px solid #1e1e1e;
+  box-shadow: 0 0 12px rgba(0, 230, 118, 0.4);
+  cursor: pointer;
+}

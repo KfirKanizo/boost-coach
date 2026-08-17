@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -88,5 +88,32 @@ describe('SimpleTimerTracker', () => {
     expect(screen.getByText('Set complete')).toBeInTheDocument();
     expect(api.completeBoost).not.toHaveBeenCalled();
     expect(screen.queryByText('The Flow')).not.toBeInTheDocument();
+  });
+
+  it('pauses and resumes the countdown', async () => {
+    vi.useFakeTimers();
+
+    renderTimer({ initialSeconds: 10 });
+
+    expect(screen.getByText('10')).toBeInTheDocument();
+
+    // Pause — use fireEvent to avoid userEvent fake-timer conflict
+    fireEvent.click(screen.getByRole('button', { name: /pause/i }));
+    expect(screen.getByText('Paused')).toBeInTheDocument();
+
+    // Time passes but countdown should not move
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText('10')).toBeInTheDocument();
+
+    // Resume
+    fireEvent.click(screen.getByRole('button', { name: /resume/i }));
+    expect(screen.queryByText('Paused')).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByText('9')).toBeInTheDocument();
   });
 });

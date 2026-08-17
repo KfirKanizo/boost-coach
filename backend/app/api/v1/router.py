@@ -11,6 +11,7 @@ from app.api.v1.routers import (
     boosts,
     coach,
     engine,
+    exercises,
     users,
 )
 
@@ -18,6 +19,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(boosts.router)
+api_router.include_router(exercises.router)
 api_router.include_router(engine.router)
 api_router.include_router(coach.router)
 api_router.include_router(admin.router)

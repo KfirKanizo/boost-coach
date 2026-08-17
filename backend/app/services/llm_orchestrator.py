@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.models import DailyBoost, User
-from app.schemas.swap import CoachFeedbackResponse
+from app.schemas.swap import CoachChatResponse, CoachFeedbackResponse
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +142,65 @@ async def generate_coach_feedback(
         new_streak=new_streak,
         is_fallback=False,
     )
+
+
+# ── Free-form chat ──────────────────────────────────────────────────────
+
+CHAT_SYSTEM_PROMPT = (
+    "You are BoostCoach, a friendly and knowledgeable personal fitness coach. "
+    "Answer the user's question concisely in 1-3 sentences. Be warm, motivating, "
+    "and practical. Do not use markdown, emojis, or bullet lists."
+)
+
+CHAT_FALLBACK = (
+    "I'm having trouble connecting right now. Please try again in a moment!"
+)
+
+
+async def generate_coach_chat(
+    db: AsyncSession,
+    user_id,
+    user_message: str,
+) -> CoachChatResponse:
+    """Free-form conversational chat with the coach."""
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not settings.llm_api_key:
+        logger.warning("No LLM_API_KEY configured; using local fallback chat")
+        return CoachChatResponse(reply=CHAT_FALLBACK, is_fallback=True)
+
+    client = AsyncOpenAI(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+    )
+    try:
+        completion = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=settings.llm_model,
+                messages=[
+                    {"role": "system", "content": CHAT_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"The user is on a {user.current_streak}-day streak.\n"
+                            f"User message: {user_message}"
+                        ),
+                    },
+                ],
+                temperature=0.7,
+                max_tokens=200,
+            ),
+            timeout=settings.llm_timeout_seconds,
+        )
+        reply = (completion.choices[0].message.content or "").strip()
+        if not reply:
+            raise ValueError("empty LLM response")
+    except Exception as exc:  # noqa: BLE001 - resilience boundary
+        logger.warning("Coach chat LLM unavailable, using fallback: %s", exc)
+        return CoachChatResponse(reply=CHAT_FALLBACK, is_fallback=True)
+    finally:
+        await client.close()
+
+    return CoachChatResponse(reply=reply, is_fallback=False)

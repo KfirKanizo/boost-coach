@@ -20,3 +20,15 @@ class CoachFeedbackResponse(BaseModel):
         False,
         description="True if LLM timed out and local fallback was used",
     )
+
+
+class CoachChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+
+
+class CoachChatResponse(BaseModel):
+    reply: str
+    is_fallback: bool = Field(
+        False,
+        description="True if LLM timed out and local fallback was used",
+    )

@@ -2,21 +2,23 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
-import type { CoachFeedback, UserProfile } from '../api/client';
+import type { CoachChatResponse, UserProfile } from '../api/client';
 import { CoachPage } from './CoachPage';
 
 vi.mock('../api/client', () => ({
   api: {
-    getCoachFeedback: vi.fn(),
+    sendCoachChat: vi.fn(),
     getUserProfile: vi.fn(),
     updateUserProfile: vi.fn(),
   },
 }));
 
-function feedback(overrides: Partial<CoachFeedback> = {}): CoachFeedback {
+// jsdom doesn't implement scrollTo on elements.
+Element.prototype.scrollTo = vi.fn();
+
+function chatReply(overrides: Partial<CoachChatResponse> = {}): CoachChatResponse {
   return {
-    llm_feedback: 'Fantastic session! Keep the momentum going.',
-    new_streak: 4,
+    reply: 'Great question! Stay consistent and you will see results.',
     is_fallback: false,
     ...overrides,
   };
@@ -35,73 +37,88 @@ function profile(overrides: Partial<UserProfile> = {}): UserProfile {
 
 describe('CoachPage', () => {
   beforeEach(() => {
-    vi.mocked(api.getCoachFeedback).mockReset();
+    vi.mocked(api.sendCoachChat).mockReset();
     vi.mocked(api.getUserProfile).mockReset();
     vi.mocked(api.updateUserProfile).mockReset();
     vi.mocked(api.getUserProfile).mockResolvedValue(profile());
   });
 
-  it('shows the typing indicator, then the feedback bubble', async () => {
-    let resolveApi!: (value: CoachFeedback) => void;
-    vi.mocked(api.getCoachFeedback).mockReturnValue(
-      new Promise<CoachFeedback>((resolve) => {
+  it('shows the typing indicator, then the coach reply', async () => {
+    let resolveApi!: (value: CoachChatResponse) => void;
+    vi.mocked(api.sendCoachChat).mockReturnValue(
+      new Promise<CoachChatResponse>((resolve) => {
         resolveApi = resolve;
       }),
     );
 
     render(<CoachPage />);
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /ask the coach/i }),
-    );
+    const input = screen.getByRole('textbox', { name: /message the coach/i });
+    await userEvent.type(input, 'How do I improve my squat?');
+    await userEvent.click(screen.getByRole('button', { name: /send message/i }));
 
+    expect(screen.getByText('How do I improve my squat?')).toBeInTheDocument();
     expect(screen.getByRole('status', { name: /coach is typing/i })).toBeInTheDocument();
 
-    resolveApi(feedback());
-    expect(await screen.findByText(/fantastic session/i)).toBeInTheDocument();
+    resolveApi(chatReply());
+    expect(
+      await screen.findByText(/great question/i),
+    ).toBeInTheDocument();
     expect(screen.getByText('BoostCoach AI')).toBeInTheDocument();
-    expect(screen.getByText('Streak 4')).toBeInTheDocument();
   });
 
   it('labels the response as local when the backend fell back', async () => {
-    vi.mocked(api.getCoachFeedback).mockResolvedValue(
-      feedback({
-        llm_feedback: 'Incredible work today! Your energy map is glowing.',
+    vi.mocked(api.sendCoachChat).mockResolvedValue(
+      chatReply({
+        reply: 'Keep going, you are doing great!',
         is_fallback: true,
-        new_streak: 5,
       }),
     );
 
     render(<CoachPage />);
-    await userEvent.click(
-      screen.getByRole('button', { name: /ask the coach/i }),
-    );
+
+    const input = screen.getByRole('textbox', { name: /message the coach/i });
+    await userEvent.type(input, 'Am I on track?');
+    await userEvent.click(screen.getByRole('button', { name: /send message/i }));
 
     expect(
-      await screen.findByText(/incredible work today/i),
+      await screen.findByText(/keep going/i),
     ).toBeInTheDocument();
     expect(screen.getByText('Local response')).toBeInTheDocument();
     expect(screen.queryByText('BoostCoach AI')).not.toBeInTheDocument();
   });
 
   it('surfaces an error and lets the user retry', async () => {
-    vi.mocked(api.getCoachFeedback)
+    vi.mocked(api.sendCoachChat)
       .mockRejectedValueOnce(new Error('The Coach is unavailable'))
-      .mockResolvedValueOnce(feedback());
+      .mockResolvedValueOnce(chatReply());
 
     render(<CoachPage />);
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /ask the coach/i }),
-    );
+    const input = screen.getByRole('textbox', { name: /message the coach/i });
+    await userEvent.type(input, 'Hello coach!');
+    await userEvent.click(screen.getByRole('button', { name: /send message/i }));
+
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'The Coach is unavailable',
     );
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /ask the coach/i }),
-    );
-    expect(await screen.findByText(/fantastic session/i)).toBeInTheDocument();
+    await userEvent.type(input, 'Try again');
+    await userEvent.click(screen.getByRole('button', { name: /send message/i }));
+
+    expect(await screen.findByText(/great question/i)).toBeInTheDocument();
+  });
+
+  it('sends a message on Enter key', async () => {
+    vi.mocked(api.sendCoachChat).mockResolvedValue(chatReply());
+
+    render(<CoachPage />);
+
+    const input = screen.getByRole('textbox', { name: /message the coach/i });
+    await userEvent.type(input, 'Quick question{Enter}');
+
+    expect(await screen.findByText('Quick question')).toBeInTheDocument();
+    expect(api.sendCoachChat).toHaveBeenCalledWith('Quick question');
   });
 
   describe('progressive profiling', () => {
@@ -110,7 +127,7 @@ describe('CoachPage', () => {
 
       render(<CoachPage />);
 
-      await screen.findByRole('button', { name: /ask the coach/i });
+      await screen.findByRole('textbox', { name: /message the coach/i });
       expect(
         screen.queryByText(/what is your current weight in kg/i),
       ).not.toBeInTheDocument();

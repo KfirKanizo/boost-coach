@@ -33,8 +33,12 @@ class User(Base):
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
     current_streak: Mapped[int] = mapped_column(Integer, default=0)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    gender: Mapped[str | None] = mapped_column(String, nullable=True)
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     weight: Mapped[float | None] = mapped_column(Float, nullable=True)
     height: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fitness_goals: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    fitness_styles: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )
