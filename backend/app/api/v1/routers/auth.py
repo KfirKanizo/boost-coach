@@ -84,7 +84,7 @@ async def google_login(
     if user is None:
         user = User(email=email)
         db.add(user)
-        await db.flush()
+        await db.commit()
 
     token = create_access_token(user.id)
     return LoginResponse(access_token=token, token_type="bearer")

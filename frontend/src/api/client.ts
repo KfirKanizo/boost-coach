@@ -9,7 +9,7 @@
 import type { Boost, Exercise } from '../types/boost';
 import type { SwapReason } from '../types/swap';
 import { enqueueBoost } from '../services/offlineQueue';
-import { getAuthToken, setAuthToken } from '../services/tokenStorage';
+import { getAuthToken, setAuthToken, clearAuthToken } from '../services/tokenStorage';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
@@ -86,6 +86,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Guard against multiple concurrent 401 redirects. */
+let _redirectingToLogin = false;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAuthToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -96,6 +99,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
+
+  if (response.status === 401 && token) {
+    await clearAuthToken();
+    if (!_redirectingToLogin) {
+      _redirectingToLogin = true;
+      window.location.hash = '/login';
+    }
+  }
 
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
