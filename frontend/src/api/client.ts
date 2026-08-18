@@ -91,16 +91,21 @@ let _redirectingToLogin = false;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAuthToken();
+  console.log('[api:request]', path, '— token:', token ? `${token.slice(0, 20)}…` : null);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((init?.headers as Record<string, string>) ?? {}),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
+    headers,
   });
 
   if (response.status === 401 && token) {
+    console.warn('[api:request] 401 received — clearing token and redirecting to login');
     await clearAuthToken();
     if (!_redirectingToLogin) {
       _redirectingToLogin = true;
@@ -139,6 +144,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
+    if (!response.access_token || typeof response.access_token !== 'string') {
+      console.error('[api:login] backend returned invalid access_token:', response.access_token);
+      throw new ApiError('Server returned an invalid token', 500);
+    }
     await setAuthToken(response.access_token);
     return response;
   },
@@ -157,6 +166,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ id_token: idToken }),
     });
+    if (!response.access_token || typeof response.access_token !== 'string') {
+      console.error('[api:googleLogin] backend returned invalid access_token:', response.access_token);
+      throw new ApiError('Server returned an invalid token', 500);
+    }
     await setAuthToken(response.access_token);
     return response;
   },
