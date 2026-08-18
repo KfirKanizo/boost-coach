@@ -40,7 +40,7 @@ export function LoginPage() {
       if (Capacitor.isNativePlatform()) {
         const res = await SocialLogin.login({
           provider: 'google',
-          options: { scopes: ['email', 'profile'] },
+          options: {},
         });
         if (res.provider !== 'google' || res.result.responseType !== 'online') {
           throw new Error('Unexpected login response');
