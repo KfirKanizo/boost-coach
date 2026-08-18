@@ -1,4 +1,4 @@
-package com.boostcoach.fit;
+package fit.boostcoach.app;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
