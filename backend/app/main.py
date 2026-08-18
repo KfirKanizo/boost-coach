@@ -83,10 +83,17 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost",
+        "http://localhost:5173",
+        "http://localhost:8100",
+        "capacitor://localhost",
+        "ionic://localhost",
+    ],
+    allow_origin_regex=r"^https?://.*\.appspot\.com$",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 app.include_router(api_router, prefix="/api/v1")
