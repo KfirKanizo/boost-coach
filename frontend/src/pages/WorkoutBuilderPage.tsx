@@ -150,7 +150,7 @@ function ExercisePickerSheet({
                   <Dumbbell size={16} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-paper">
+                  <span className="block truncate text-sm font-semibold capitalize text-paper">
                     {name}
                   </span>
                   <span className="block text-xs text-ash">

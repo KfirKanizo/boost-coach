@@ -74,7 +74,7 @@ function QuickStartSheet({ exercise, onClose }: QuickStartSheetProps) {
         {/* Header */}
         <header className="flex items-center justify-between px-6 pt-6 pb-2">
           <div className="min-w-0 flex-1">
-            <h2 className="font-display text-lg font-bold text-paper">{name}</h2>
+            <h2 className="font-display text-lg font-bold capitalize text-paper">{name}</h2>
             <p className="mt-0.5 text-xs text-ash">
               {isDuration ? 'Duration exercise' : 'Rep-counted exercise'} &middot;{' '}
               {exercise.movement_pattern}
@@ -353,7 +353,7 @@ export function ExerciseLibraryPage() {
                     <Dumbbell size={18} />
                   </div>
 
-                  <span className="text-sm font-semibold leading-tight text-paper">
+                  <span className="text-sm font-semibold capitalize leading-tight text-paper">
                     {name}
                   </span>
 

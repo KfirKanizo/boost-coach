@@ -701,58 +701,56 @@ export function WorkoutRunner() {
 
       {/* ── Animation sidebar + instructions (exercise reference) ────── */}
       {(phase === 'ready' || isActive) && currentExercise && (
-        <div className="absolute bottom-20 left-4 z-50 flex flex-col gap-2">
+        <div className="absolute right-4 top-28 z-50 flex flex-col items-end gap-2">
           {/* Animation card or placeholder */}
-          <div className="flex items-end gap-2">
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
             {currentExercise.animationUrl ? (
-              <div className="overflow-hidden rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
-                <img
-                  src={
-                    currentExercise.animationUrl.includes('rapidapi-key')
-                      ? currentExercise.animationUrl
-                      : `${currentExercise.animationUrl}?rapidapi-key=112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34`
-                  }
-                  alt={`${currentExercise.exerciseName} demonstration`}
-                  className="h-24 w-24 object-cover"
-                  loading="lazy"
-                />
-              </div>
+              <img
+                src={
+                  currentExercise.animationUrl.includes('rapidapi-key')
+                    ? currentExercise.animationUrl
+                    : `${currentExercise.animationUrl}?rapidapi-key=112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34`
+                }
+                alt={`${currentExercise.exerciseName} demonstration`}
+                className="h-28 w-28 object-cover"
+                loading="lazy"
+              />
             ) : (
-              <div className="flex h-24 w-24 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
-                <Dumbbell size={24} className="mb-1 text-ash" />
+              <div className="flex h-28 w-28 flex-col items-center justify-center">
+                <Dumbbell size={28} className="mb-1 text-ash" />
                 <span className="text-[9px] font-bold uppercase text-ash">No preview</span>
               </div>
             )}
-
-            {/* Instructions toggle */}
-            {currentExercise.instructions && currentExercise.instructions.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowInstructions((v) => !v)}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/30 backdrop-blur-md transition-colors hover:bg-black/50"
-                aria-label="Toggle instructions"
-              >
-                <Info size={14} className="text-neon" />
-              </button>
-            )}
           </div>
 
-          {/* Instructions panel (collapsible) */}
-          {showInstructions && currentExercise.instructions && currentExercise.instructions.length > 0 && (
-            <div className="max-h-40 w-64 overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-3 backdrop-blur-md">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neon">
-                How to perform
-              </p>
-              <ol className="space-y-1">
-                {currentExercise.instructions.map((step, i) => (
-                  <li key={i} className="text-[11px] leading-relaxed text-paper/80">
-                    <span className="mr-1 font-bold text-neon/70">{i + 1}.</span>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            </div>
+          {/* Prominent instructions button */}
+          {currentExercise.instructions && currentExercise.instructions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowInstructions((v) => !v)}
+              className="flex items-center gap-1.5 rounded-full border border-neon/40 bg-neon/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neon backdrop-blur-md transition-all hover:bg-neon/25 active:scale-95"
+            >
+              <Info size={12} />
+              {showInstructions ? 'Hide Steps' : 'View Steps'}
+            </button>
           )}
+        </div>
+      )}
+
+      {/* ── Instructions overlay (full-width, below animation widget) ── */}
+      {showInstructions && currentExercise?.instructions && currentExercise.instructions.length > 0 && (
+        <div className="absolute right-4 top-[11.5rem] z-50 max-h-48 w-72 overflow-y-auto rounded-xl border border-white/10 bg-black/60 p-3 backdrop-blur-md">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neon">
+            How to perform
+          </p>
+          <ol className="space-y-1">
+            {currentExercise.instructions.map((step, i) => (
+              <li key={i} className="text-[11px] leading-relaxed text-paper/80">
+                <span className="mr-1 font-bold text-neon/70">{i + 1}.</span>
+                {step}
+              </li>
+            ))}
+          </ol>
         </div>
       )}
 

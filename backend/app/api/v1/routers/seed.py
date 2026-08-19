@@ -44,25 +44,31 @@ RAPIDAPI_KEY = os.getenv(
 # Auto-tagging helpers
 # ---------------------------------------------------------------------------
 
-_SQUAT_RE = re.compile(r"\bsquat\b", re.IGNORECASE)
-_PUSHUP_RE = re.compile(r"\bpush[\s-]?up\b", re.IGNORECASE)
-_PLANK_RE = re.compile(r"\bplank\b", re.IGNORECASE)
+_SQUAT_RE = re.compile(r"\b(squat|lunge|step[\s-]?up|split[\s-]?squat|bulgarian)\b", re.IGNORECASE)
+_PUSH_RE = re.compile(r"\b(push[\s-]?up|press|extension|dip|fly|chest[\s-]?fly|lateral[\s-]?raise|shoulder[\s-]?press|tricep|bench)\b", re.IGNORECASE)
+_PULL_RE = re.compile(r"\b(pull[\s-]?up|row|curl|pulldown|face[\s-]?pull|shrug|lat)\b", re.IGNORECASE)
+_HINGE_RE = re.compile(r"\b(deadlift|hip[\s-]?hinge|swing|good[\s-]?morning|rdl|kettlebell)\b", re.IGNORECASE)
+_CORE_RE = re.compile(r"\b(plank|crunch|sit[\s-]?up|russian[\s-]?twist|leg[\s-]?raise|ab[\s-]?roll|bird[\s-]?dog|dead[\s-]?bug|hollow)\b", re.IGNORECASE)
 
 
 def _classify_movement(name: str) -> str:
     """Map an exercise name to one of our custom movement patterns."""
     if _SQUAT_RE.search(name):
         return "squat"
-    if _PUSHUP_RE.search(name):
-        return "push"
-    if _PLANK_RE.search(name):
+    if _CORE_RE.search(name):
         return "core"
+    if _PUSH_RE.search(name):
+        return "push"
+    if _PULL_RE.search(name):
+        return "pull"
+    if _HINGE_RE.search(name):
+        return "hinge"
     return "none"
 
 
 def _classify_boost_type(name: str) -> str:
     """Determine whether the exercise uses rep-counting or duration."""
-    if _PLANK_RE.search(name):
+    if _CORE_RE.search(name):
         return "DURATION"
     return "VISION_REP"
 
@@ -159,7 +165,7 @@ async def seed_exercises(
     skipped = 0
 
     for item in all_exercises:
-        name = item.get("name", "").strip()
+        name = item.get("name", "").strip().title()
         if not name:
             skipped += 1
             continue
