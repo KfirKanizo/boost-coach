@@ -37,6 +37,7 @@ interface CompletedExercise {
   name: string;
   sets: number;
   repsPerSet: number;
+  isDuration?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,7 @@ const PHASE_LABELS: Record<ExercisePhase, string> = {
   stand_up: 'STAND UP',
   down: 'DOWN',
   up: 'UP',
+  holding: 'HOLDING',
 };
 
 // ---------------------------------------------------------------------------
@@ -90,6 +92,7 @@ export function WorkoutRunner() {
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [setIndex, setSetIndex] = useState(0); // 0-indexed within current exercise
   const [localRepCount, setLocalRepCount] = useState(0);
+  const [holdElapsed, setHoldElapsed] = useState(0); // seconds accumulated while holding
   const [restRemaining, setRestRemaining] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Initializing camera...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -113,10 +116,13 @@ export function WorkoutRunner() {
   const workerRepCountRef = useRef(0);
   const pauseLockRef = useRef(false); // blocks rep processing while paused
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoldingRef = useRef(false); // tracks whether worker reports 'holding' phase
 
   // ── Derived values ─────────────────────────────────────────────────
   const currentExercise = sessionExercises[exerciseIndex];
+  const isDurationExercise = currentExercise?.movementPattern === 'core';
   const targetReps = currentExercise?.reps ?? 12;
+  const targetDurationSec = isDurationExercise ? targetReps : 0;
   const totalSets = currentExercise?.sets ?? 3;
   const restDuration = currentExercise?.restSeconds ?? 30;
   const isLastExercise = exerciseIndex >= sessionExercises.length - 1;
@@ -216,7 +222,11 @@ export function WorkoutRunner() {
       if (message.type === 'READY') {
         workerReadyRef.current = true;
         const pattern: MovementPattern =
-          currentExercise?.movementPattern === 'push' ? 'push' : 'squat';
+          currentExercise?.movementPattern === 'push'
+            ? 'push'
+            : currentExercise?.movementPattern === 'core'
+              ? 'core'
+              : 'squat';
         worker.postMessage({ type: 'INIT', movementPattern: pattern });
         setPhase((current) => {
           if (current === 'error' || current === 'completed') return current;
@@ -231,8 +241,11 @@ export function WorkoutRunner() {
         setLandmarks(message.frame.landmarks);
         setWarning(message.frame.warning);
 
+        // Track holding phase for duration exercises
+        isHoldingRef.current = message.frame.phase === 'holding';
+
         // Calculate local reps (since start of current set)
-        if (!pauseLockRef.current) {
+        if (!pauseLockRef.current && !isDurationExercise) {
           const local = Math.max(
             0,
             message.frame.repCount - workerStartRepCountRef.current,
@@ -335,23 +348,43 @@ export function WorkoutRunner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, restRemaining]);
 
-  // ── Rep target reached → advance ───────────────────────────────────
+  // ── Duration timer (core exercises: ticks only while holding) ───────
+  useEffect(() => {
+    if (!isDurationExercise || phase !== 'active') return;
+    const id = window.setInterval(() => {
+      if (!isHoldingRef.current) return; // paused when form breaks
+      setHoldElapsed((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [isDurationExercise, phase]);
+
+  // ── Target reached → advance ─────────────────────────────────────
   useEffect(() => {
     if (phase !== 'active') return;
-    if (localRepCount < targetReps) return;
+
+    const targetReached = isDurationExercise
+      ? holdElapsed >= targetDurationSec
+      : localRepCount >= targetReps;
+    if (!targetReached) return;
 
     // Target hit! Determine next state.
     if (!isLastSet) {
-      // More sets in this exercise → rest
       beginRest();
     } else if (!isLastExercise) {
-      // Last set of this exercise, more exercises → transition
       advanceExercise();
     } else {
-      // Done!
       setPhase('completed');
     }
-  }, [phase, localRepCount, targetReps, isLastSet, isLastExercise]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    phase,
+    holdElapsed,
+    targetDurationSec,
+    isDurationExercise,
+    localRepCount,
+    targetReps,
+    isLastSet,
+    isLastExercise,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Set transitions ────────────────────────────────────────────────
 
@@ -365,7 +398,9 @@ export function WorkoutRunner() {
   /** Start (or restart) the camera+worker for a new set/exercise. */
   const beginSet = useCallback(() => {
     pauseLockRef.current = false;
+    isHoldingRef.current = false;
     setLocalRepCount(0);
+    setHoldElapsed(0);
     setSetIndex((prev) => prev + 1);
     workerStartRepCountRef.current = workerRepCountRef.current;
     setPhase('ready');
@@ -377,6 +412,7 @@ export function WorkoutRunner() {
     setIsTransitioning(true);
     setSetIndex(0);
     setLocalRepCount(0);
+    setHoldElapsed(0);
 
     const nextIndex = exerciseIndex + 1;
     setExerciseIndex(nextIndex);
@@ -433,8 +469,13 @@ export function WorkoutRunner() {
   // ── Derived HUD values ─────────────────────────────────────────────
   const isActive = phase === 'active';
   const isPaused = false; // simplicity for now — we don't show paused UI separately
-  const progressPct =
-    targetReps > 0 ? Math.min(100, (localRepCount / targetReps) * 100) : 0;
+  const progressPct = isDurationExercise
+    ? targetDurationSec > 0
+      ? Math.min(100, (holdElapsed / targetDurationSec) * 100)
+      : 0
+    : targetReps > 0
+      ? Math.min(100, (localRepCount / targetReps) * 100)
+      : 0;
 
   // Completed exercises for summary
   const completedExercises: CompletedExercise[] = [];
@@ -443,7 +484,8 @@ export function WorkoutRunner() {
     completedExercises.push({
       name: ex.exerciseName,
       sets: ex.sets,
-      repsPerSet: ex.reps,
+      repsPerSet: ex.movementPattern === 'core' ? ex.reps : ex.reps,
+      isDuration: ex.movementPattern === 'core',
     });
   }
   // Current exercise also completed if we're in completed phase
@@ -451,7 +493,8 @@ export function WorkoutRunner() {
     completedExercises.push({
       name: currentExercise.exerciseName,
       sets: currentExercise.sets,
-      repsPerSet: currentExercise.reps,
+      repsPerSet: isDurationExercise ? targetDurationSec : currentExercise.reps,
+      isDuration: isDurationExercise,
     });
   }
 
@@ -500,11 +543,20 @@ export function WorkoutRunner() {
           {isActive && (
             <div className="text-right">
               <div className="font-timer text-3xl font-bold leading-none text-paper drop-shadow">
-                {localRepCount}
-                <span className="ml-1 text-lg text-ash">/{targetReps}</span>
+                {isDurationExercise ? (
+                  <>
+                    {targetDurationSec - holdElapsed}
+                    <span className="ml-1 text-lg text-ash">s</span>
+                  </>
+                ) : (
+                  <>
+                    {localRepCount}
+                    <span className="ml-1 text-lg text-ash">/{targetReps}</span>
+                  </>
+                )}
               </div>
               <div className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-ash">
-                reps
+                {isDurationExercise ? 'time' : 'reps'}
               </div>
             </div>
           )}
@@ -516,7 +568,9 @@ export function WorkoutRunner() {
         <div className="absolute inset-x-0 bottom-28 z-40 flex justify-center px-4">
           <div className="rounded-full border border-neon/30 bg-ink/70 px-5 py-2 backdrop-blur">
             <span className="text-xs font-bold uppercase tracking-widest text-neon animate-pulse">
-              Start when ready — first rep begins the set
+              {isDurationExercise
+                ? 'Start when ready — hold the plank to begin'
+                : 'Start when ready — first rep begins the set'}
             </span>
           </div>
         </div>
@@ -538,7 +592,7 @@ export function WorkoutRunner() {
           {/* Phase label */}
           <div className="absolute bottom-28 right-4 z-40 rounded-full border border-white/10 bg-ink/70 px-4 py-1.5 backdrop-blur">
             <span className="text-xs font-bold uppercase tracking-widest text-paper">
-              {PHASE_LABELS[warning === 'pose_lost' ? 'get_ready' : 'squat']}
+              {PHASE_LABELS[warning === 'pose_lost' ? 'get_ready' : isDurationExercise ? (isHoldingRef.current ? 'holding' : 'get_ready') : 'squat']}
             </span>
           </div>
 
@@ -548,6 +602,22 @@ export function WorkoutRunner() {
               <ShieldAlert size={14} className="shrink-0 text-crimson" />
               <span className="text-xs font-semibold text-paper">
                 Knees caving in — press them outward
+              </span>
+            </div>
+          )}
+          {warning === 'hip_sag' && (
+            <div className="absolute bottom-36 left-0 right-0 z-40 mx-4 flex items-center gap-2 rounded-lg border border-crimson/40 bg-crimson/15 px-3 py-2 backdrop-blur">
+              <ShieldAlert size={14} className="shrink-0 text-crimson" />
+              <span className="text-xs font-semibold text-paper">
+                Hips sagging — raise your hips to form a straight line
+              </span>
+            </div>
+          )}
+          {warning === 'hip_pike' && (
+            <div className="absolute bottom-36 left-0 right-0 z-40 mx-4 flex items-center gap-2 rounded-lg border border-crimson/40 bg-crimson/15 px-3 py-2 backdrop-blur">
+              <ShieldAlert size={14} className="shrink-0 text-crimson" />
+              <span className="text-xs font-semibold text-paper">
+                Hips too high — lower your hips to form a straight line
               </span>
             </div>
           )}

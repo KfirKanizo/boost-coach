@@ -200,6 +200,8 @@ export function analyzeSquatFrame(
     case 'stand_up':
       if (bothFlexed) phase = 'squat';
       break;
+    case 'holding':
+      break;
   }
 
   const nextState: SquatState = { phase, repCount };

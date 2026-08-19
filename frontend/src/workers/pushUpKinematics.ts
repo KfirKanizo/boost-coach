@@ -235,6 +235,7 @@ export function analyzePushUpFrame(
     // Squat-only phases — unreachable but keeps TS exhaustive.
     case 'squat':
     case 'stand_up':
+    case 'holding':
       break;
   }
 

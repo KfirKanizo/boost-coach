@@ -22,6 +22,11 @@ import {
   createInitialPushUpState,
   type PushUpState,
 } from './pushUpKinematics';
+import {
+  analyzePlankFrame,
+  createInitialPlankState,
+  type PlankState,
+} from './plankKinematics';
 import type {
   LandmarkPoint,
   MovementPattern,
@@ -61,6 +66,8 @@ let poseLandmarker: PoseLandmarker | null = null;
 let movementPattern: MovementPattern = 'squat';
 let squatState: SquatState = createInitialSquatState();
 let pushUpState: PushUpState = createInitialPushUpState();
+let plankState: PlankState = createInitialPlankState();
+let lastFrameTimestampMs = 0;
 
 /**
  * FPS telemetry — privacy first.
@@ -186,10 +193,17 @@ function handleFrame(request: Extract<VisionWorkerRequest, { type: 'FRAME' }>): 
     if (movementPattern === 'push') {
       analysis = analyzePushUpFrame(points, pushUpState);
       pushUpState = analysis.nextState;
+    } else if (movementPattern === 'core') {
+      const deltaMs = lastFrameTimestampMs > 0
+        ? Math.max(0, request.timestampMs - lastFrameTimestampMs)
+        : 0;
+      analysis = analyzePlankFrame(points, plankState, deltaMs);
+      plankState = analysis.nextState;
     } else {
       analysis = analyzeSquatFrame(points, squatState);
       squatState = analysis.nextState;
     }
+    lastFrameTimestampMs = request.timestampMs;
 
     post({
       type: 'RESULTS',
@@ -216,6 +230,8 @@ ctx.addEventListener('message', (event) => {
     movementPattern = request.movementPattern;
     squatState = createInitialSquatState();
     pushUpState = createInitialPushUpState();
+    plankState = createInitialPlankState();
+    lastFrameTimestampMs = 0;
   } else if (request.type === 'FRAME') {
     handleFrame(request);
   }

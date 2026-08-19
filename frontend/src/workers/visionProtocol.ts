@@ -14,7 +14,7 @@ export interface LandmarkPoint {
 }
 
 /** Supported movement patterns routed to the correct kinematics module. */
-export type MovementPattern = 'squat' | 'push';
+export type MovementPattern = 'squat' | 'push' | 'core';
 
 /** Phase machine states surfaced to the HUD (superset of all exercises). */
 export type ExercisePhase =
@@ -22,10 +22,11 @@ export type ExercisePhase =
   | 'squat'
   | 'stand_up'
   | 'down'
-  | 'up';
+  | 'up'
+  | 'holding';
 
 /** Posture warnings detected by kinematic analysis. */
-export type ExerciseWarning = 'knee_valgus' | 'hip_sag' | 'pose_lost';
+export type ExerciseWarning = 'knee_valgus' | 'hip_sag' | 'hip_pike' | 'pose_lost';
 
 export type VisionWorkerRequest =
   | {

@@ -9,8 +9,8 @@ import { WorkoutRunner } from './WorkoutRunner';
 // ── Helpers ──────────────────────────────────────────────────────────
 
 const EXERCISES_DEFAULTS: RoutineExercise[] = [
-  { exerciseId: 'e-1', exerciseName: 'Plank', movementPattern: 'core', sets: 2, reps: 3, restSeconds: 2 },
-  { exerciseId: 'e-2', exerciseName: 'Crunches', movementPattern: 'core', sets: 2, reps: 4, restSeconds: 2 },
+  { exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 2, reps: 3, restSeconds: 2 },
+  { exerciseId: 'e-2', exerciseName: 'Squats', movementPattern: 'squat', sets: 2, reps: 4, restSeconds: 2 },
 ];
 
 function makeExercises(overrides?: Partial<RoutineExercise>[]): RoutineExercise[] {
@@ -19,7 +19,7 @@ function makeExercises(overrides?: Partial<RoutineExercise>[]): RoutineExercise[
 }
 
 function singleExercise(overrides: Partial<RoutineExercise> = {}): RoutineExercise[] {
-  return [{ exerciseId: 'e-1', exerciseName: 'Plank', movementPattern: 'core', sets: 2, reps: 3, restSeconds: 2, ...overrides }];
+  return [{ exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 2, reps: 3, restSeconds: 2, ...overrides }];
 }
 
 function renderRunner(exercises?: RoutineExercise[]) {
@@ -80,7 +80,7 @@ describe('WorkoutRunner', () => {
     renderRunner();
     await waitForReady();
 
-    expect(screen.getByText('Plank')).toBeInTheDocument();
+    expect(screen.getByText('Push-ups')).toBeInTheDocument();
     expect(screen.getByText(/start when ready/i)).toBeInTheDocument();
     expect(screen.getByText('Set 1 / 2')).toBeInTheDocument();
   });
@@ -113,7 +113,7 @@ describe('WorkoutRunner', () => {
     await emitResults(3);
 
     expect(screen.getByText(/up next/i)).toBeInTheDocument();
-    expect(screen.getByText('Set 2 of Plank')).toBeInTheDocument();
+    expect(screen.getByText('Set 2 of Push-ups')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /skip rest/i })).toBeInTheDocument();
   });
 
@@ -156,21 +156,21 @@ describe('WorkoutRunner', () => {
     await emitResults(2);
 
     expect(screen.getByText('Workout Complete')).toBeInTheDocument();
-    expect(screen.getByText('Plank')).toBeInTheDocument();
+    expect(screen.getByText('Push-ups')).toBeInTheDocument();
   });
 
   it('transitions to next exercise after completing all sets', async () => {
     vi.useFakeTimers();
     renderRunner([
-      { exerciseId: 'e-1', exerciseName: 'Plank', movementPattern: 'core', sets: 1, reps: 2, restSeconds: 0 },
-      { exerciseId: 'e-2', exerciseName: 'Crunches', movementPattern: 'core', sets: 1, reps: 2, restSeconds: 0 },
+      { exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 1, reps: 2, restSeconds: 0 },
+      { exerciseId: 'e-2', exerciseName: 'Squats', movementPattern: 'squat', sets: 1, reps: 2, restSeconds: 0 },
     ]);
     await waitForReady();
 
     await emitResults(2);
 
     expect(screen.getByText(/get ready/i)).toBeInTheDocument();
-    expect(screen.getByText('Crunches')).toBeInTheDocument();
+    expect(screen.getByText('Squats')).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(1500);
@@ -179,7 +179,7 @@ describe('WorkoutRunner', () => {
 
     await waitForReady();
 
-    expect(screen.getByText('Crunches')).toBeInTheDocument();
+    expect(screen.getByText('Squats')).toBeInTheDocument();
     expect(screen.getByText('Set 1 / 1')).toBeInTheDocument();
   });
 
@@ -210,8 +210,8 @@ describe('WorkoutRunner', () => {
   it('shows completion with correct totals for multi-exercise workout', async () => {
     vi.useFakeTimers();
     renderRunner([
-      { exerciseId: 'e-1', exerciseName: 'Plank', movementPattern: 'core', sets: 1, reps: 2, restSeconds: 0 },
-      { exerciseId: 'e-2', exerciseName: 'Crunches', movementPattern: 'core', sets: 1, reps: 3, restSeconds: 0 },
+      { exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 1, reps: 2, restSeconds: 0 },
+      { exerciseId: 'e-2', exerciseName: 'Squats', movementPattern: 'squat', sets: 1, reps: 3, restSeconds: 0 },
     ]);
     await waitForReady();
 

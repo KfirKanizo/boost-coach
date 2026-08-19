@@ -5,6 +5,7 @@ import type {
   ExerciseWarning,
 } from '../../workers/visionProtocol';
 import { LANDMARKS } from '../../workers/squatKinematics';
+import { PLANK_LANDMARKS } from '../../workers/plankKinematics';
 import { POSE_CONNECTIONS } from './poseGeometry';
 
 interface SkeletonOverlayProps {
@@ -72,6 +73,19 @@ export function SkeletonOverlay({ landmarks, warning }: SkeletonOverlayProps) {
       ctx.strokeStyle = CRIMSON;
       ctx.beginPath();
       for (const joint of [LANDMARKS.leftKnee, LANDMARKS.rightKnee]) {
+        if (!isVisible(joint)) continue;
+        const center = point(joint);
+        ctx.moveTo(center.x + 6, center.y);
+        ctx.arc(center.x, center.y, 6, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+    }
+
+    if (warning === 'hip_sag' || warning === 'hip_pike') {
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = CRIMSON;
+      ctx.beginPath();
+      for (const joint of [PLANK_LANDMARKS.leftHip, PLANK_LANDMARKS.rightHip]) {
         if (!isVisible(joint)) continue;
         const center = point(joint);
         ctx.moveTo(center.x + 6, center.y);

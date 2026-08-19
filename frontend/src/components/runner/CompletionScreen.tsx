@@ -4,6 +4,7 @@ interface ExerciseSummary {
   name: string;
   sets: number;
   repsPerSet: number;
+  isDuration?: boolean;
 }
 
 interface CompletionScreenProps {
@@ -20,6 +21,7 @@ interface CompletionScreenProps {
 export function CompletionScreen({ exercises, onReturn }: CompletionScreenProps) {
   const totalSets = exercises.reduce((sum, e) => sum + e.sets, 0);
   const totalReps = exercises.reduce((sum, e) => sum + e.sets * e.repsPerSet, 0);
+  const hasDuration = exercises.some((e) => e.isDuration);
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/85 p-8 text-center">
@@ -33,7 +35,8 @@ export function CompletionScreen({ exercises, onReturn }: CompletionScreenProps)
       </h2>
       <p className="mt-1 text-sm text-ash">
         {exercises.length} {exercises.length === 1 ? 'exercise' : 'exercises'} &middot;{' '}
-        {totalSets} sets &middot; {totalReps} total reps
+        {totalSets} sets &middot;{' '}
+        {hasDuration ? `${totalReps}s total` : `${totalReps} total reps`}
       </p>
 
       {/* Exercise breakdown */}
@@ -47,7 +50,7 @@ export function CompletionScreen({ exercises, onReturn }: CompletionScreenProps)
           >
             <span className="truncate font-semibold text-paper">{ex.name}</span>
             <span className="ml-2 shrink-0 text-ash">
-              {ex.sets}&times;{ex.repsPerSet}
+              {ex.sets}&times;{ex.repsPerSet}{ex.isDuration ? 's' : ''}
             </span>
           </div>
         ))}

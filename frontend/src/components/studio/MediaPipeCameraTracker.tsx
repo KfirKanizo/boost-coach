@@ -67,6 +67,7 @@ const PHASE_LABELS: Record<ExercisePhase, string> = {
   stand_up: 'STAND UP',
   down: 'DOWN',
   up: 'UP',
+  holding: 'HOLDING',
 };
 
 function formatTime(totalSec: number): string {
@@ -486,6 +487,22 @@ export function MediaPipeCameraTracker({
           <ShieldAlert size={14} className="shrink-0 text-crimson" />
           <span className="text-xs font-semibold text-paper">
             Knees caving in — press them outward
+          </span>
+        </div>
+      )}
+      {isActive && warning === 'hip_sag' && (
+        <div className="absolute bottom-36 left-0 right-0 z-40 mx-4 flex items-center gap-2 rounded-lg border border-crimson/40 bg-crimson/15 px-3 py-2 backdrop-blur">
+          <ShieldAlert size={14} className="shrink-0 text-crimson" />
+          <span className="text-xs font-semibold text-paper">
+            Hips sagging — raise your hips to form a straight line
+          </span>
+        </div>
+      )}
+      {isActive && warning === 'hip_pike' && (
+        <div className="absolute bottom-36 left-0 right-0 z-40 mx-4 flex items-center gap-2 rounded-lg border border-crimson/40 bg-crimson/15 px-3 py-2 backdrop-blur">
+          <ShieldAlert size={14} className="shrink-0 text-crimson" />
+          <span className="text-xs font-semibold text-paper">
+            Hips too high — lower your hips to form a straight line
           </span>
         </div>
       )}
