@@ -34,7 +34,10 @@ from app.models import Exercise, User
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 EXERCISEDB_API_URL = "https://exercisedb.p.rapidapi.com/exercises"
-RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "YOUR_RAPIDAPI_KEY_HERE")
+RAPIDAPI_KEY = os.getenv(
+    "RAPIDAPI_KEY",
+    "112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34",
+)
 
 # ---------------------------------------------------------------------------
 # Auto-tagging helpers
@@ -153,6 +156,11 @@ async def seed_exercises(
         equipment = _map_equipment(item.get("equipment", []))
         target = _map_target(item.get("bodyPart", ""))
         gif_url = item.get("gifUrl", "")
+
+        # Append rapidapi-key so the frontend <img> can render without 403
+        if gif_url:
+            sep = "&" if "?" in gif_url else "?"
+            gif_url = f"{gif_url}{sep}rapidapi-key={RAPIDAPI_KEY}"
 
         if existing:
             # Update animation_url if we got a new one
