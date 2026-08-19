@@ -18,6 +18,7 @@ Requires admin privileges.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from typing import Any
@@ -108,36 +109,56 @@ class SeedResult(BaseModel):
 
 @router.post("/seed-exercises", response_model=SeedResult)
 async def seed_exercises(
-    limit: int = 2000,
     _admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> SeedResult:
-    """Fetch exercises from ExerciseDB and upsert into the local catalogue."""
+    """Fetch ALL exercises from ExerciseDB via paginated requests.
+
+    Uses a small page size (50) to stay within RapidAPI's free-tier
+    limits, with a 1.5 s delay between pages to avoid 429s.
+    """
     headers = {
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
     }
 
-    try:
-        resp = requests.get(
-            EXERCISEDB_API_URL,
-            headers=headers,
-            params={"limit": limit, "offset": 0},
-            timeout=30,
-        )
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to reach ExerciseDB: {exc}",
-        )
+    PAGE_SIZE = 50
+    all_exercises: list[dict[str, Any]] = []
+    offset = 0
 
-    exercises: list[dict[str, Any]] = resp.json()
+    # ── Paginated fetch ────────────────────────────────────────────────
+    while True:
+        try:
+            resp = await asyncio.to_thread(
+                requests.get,
+                EXERCISEDB_API_URL,
+                headers=headers,
+                params={"limit": PAGE_SIZE, "offset": offset},
+                timeout=30,
+            )
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to reach ExerciseDB at offset {offset}: {exc}",
+            )
+
+        page: list[dict[str, Any]] = resp.json()
+        if not page:
+            break
+
+        all_exercises.extend(page)
+        offset += PAGE_SIZE
+
+        # Rate-limit: pause between pages
+        await asyncio.sleep(1.5)
+
+    # ── Upsert into DB ────────────────────────────────────────────────
     inserted = 0
     updated = 0
     skipped = 0
 
-    for item in exercises:
+    for item in all_exercises:
         name = item.get("name", "").strip()
         if not name:
             skipped += 1
@@ -152,7 +173,7 @@ async def seed_exercises(
 
         movement = _classify_movement(name)
         boost_type = _classify_boost_type(name)
-        equipment = _map_equipment(item.get("equipment", []))
+        equipment = _map_equipment(item.get("equipment", ""))
         target = _map_target(item.get("bodyPart", ""))
         gif_url = item.get("gifUrl", "")
 
@@ -183,7 +204,7 @@ async def seed_exercises(
 
     await db.commit()
     return SeedResult(
-        fetched=len(exercises),
+        fetched=len(all_exercises),
         inserted=inserted,
         updated=updated,
         skipped=skipped,
