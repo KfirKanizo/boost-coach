@@ -26,18 +26,12 @@ describe('StudioFactory', () => {
     expect(screen.getByText('VISION_REP')).toBeInTheDocument();
   });
 
-  it('passes durationSec through to the vision tracker', async () => {
-    renderFactory({ boostType: 'VISION_REP', durationSec: 45 });
-
-    expect(await screen.findByText('0:45')).toBeInTheDocument();
-  });
-
   it('renders the timer tracker for DURATION', () => {
     renderFactory({ boostType: 'DURATION' });
 
     expect(screen.getByText('Duration Boost')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Finish Set' }),
+      screen.getByRole('button', { name: /start/i }),
     ).toBeInTheDocument();
   });
 

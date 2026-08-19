@@ -13,19 +13,36 @@ export interface LandmarkPoint {
   visibility?: number;
 }
 
-/** Squat phase machine states, surfaced to the HUD. */
-export type SquatPhase = 'get_ready' | 'squat' | 'stand_up';
+/** Supported movement patterns routed to the correct kinematics module. */
+export type MovementPattern = 'squat' | 'push';
 
-/** Posture warnings detected by the kinematic analysis. */
-export type SquatWarning = 'knee_valgus' | 'pose_lost';
+/** Phase machine states surfaced to the HUD (superset of all exercises). */
+export type ExercisePhase =
+  | 'get_ready'
+  | 'squat'
+  | 'stand_up'
+  | 'down'
+  | 'up';
 
-export type VisionWorkerRequest = {
-  /** A zero-copy video frame transferred into the worker. */
-  type: 'FRAME';
-  bitmap: ImageBitmap;
-  /** Monotonic timestamp (ms) required by VIDEO-mode landmark tracking. */
-  timestampMs: number;
-};
+/** Posture warnings detected by kinematic analysis. */
+export type ExerciseWarning = 'knee_valgus' | 'hip_sag' | 'pose_lost';
+
+export type VisionWorkerRequest =
+  | {
+      /**
+       * One-time configuration message sent after worker creation.
+       * Tells the worker which kinematics module to activate.
+       */
+      type: 'INIT';
+      movementPattern: MovementPattern;
+    }
+  | {
+      /** A zero-copy video frame transferred into the worker. */
+      type: 'FRAME';
+      bitmap: ImageBitmap;
+      /** Monotonic timestamp (ms) required by VIDEO-mode landmark tracking. */
+      timestampMs: number;
+    };
 
 export type VisionWorkerResponse =
   | { type: 'READY' }
@@ -35,8 +52,8 @@ export type VisionWorkerResponse =
         /** Skeleton for the HUD overlay, or null when no pose was detected. */
         landmarks: LandmarkPoint[] | null;
         repCount: number;
-        phase: SquatPhase;
-        warning: SquatWarning | null;
+        phase: ExercisePhase;
+        warning: ExerciseWarning | null;
       };
     }
   | {

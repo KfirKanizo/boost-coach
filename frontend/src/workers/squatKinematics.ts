@@ -8,8 +8,8 @@
 
 import type {
   LandmarkPoint,
-  SquatPhase,
-  SquatWarning,
+  ExercisePhase,
+  ExerciseWarning,
 } from './visionProtocol';
 
 /** COCO 33-landmark pose indices relevant to squat analysis. */
@@ -38,7 +38,7 @@ const MIN_VISIBILITY = 0.5;
 const VALGUS_THRESHOLD = 0.3;
 
 export interface SquatState {
-  phase: SquatPhase;
+  phase: ExercisePhase;
   repCount: number;
 }
 
@@ -46,8 +46,8 @@ export interface SquatAnalysis {
   /** Whether a full, visible pose was available this frame. */
   detected: boolean;
   repCount: number;
-  phase: SquatPhase;
-  warning: SquatWarning | null;
+  phase: ExercisePhase;
+  warning: ExerciseWarning | null;
   nextState: SquatState;
 }
 
@@ -203,7 +203,7 @@ export function analyzeSquatFrame(
   }
 
   const nextState: SquatState = { phase, repCount };
-  const warning: SquatWarning | null = detectKneeValgus(points)
+  const warning: ExerciseWarning | null = detectKneeValgus(points)
     ? 'knee_valgus'
     : null;
 

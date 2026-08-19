@@ -2,14 +2,14 @@ import { useEffect, useRef } from 'react';
 
 import type {
   LandmarkPoint,
-  SquatWarning,
+  ExerciseWarning,
 } from '../../workers/visionProtocol';
 import { LANDMARKS } from '../../workers/squatKinematics';
 import { POSE_CONNECTIONS } from './poseGeometry';
 
 interface SkeletonOverlayProps {
   landmarks: LandmarkPoint[] | null;
-  warning: SquatWarning | null;
+  warning: ExerciseWarning | null;
 }
 
 /** Design-system tokens (mirror of tailwind.config.js). */

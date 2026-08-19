@@ -17,8 +17,14 @@ import {
   createInitialSquatState,
   type SquatState,
 } from './squatKinematics';
+import {
+  analyzePushUpFrame,
+  createInitialPushUpState,
+  type PushUpState,
+} from './pushUpKinematics';
 import type {
   LandmarkPoint,
+  MovementPattern,
   VisionWorkerRequest,
   VisionWorkerResponse,
 } from './visionProtocol';
@@ -52,7 +58,9 @@ const post = (message: VisionWorkerResponse): void => {
 };
 
 let poseLandmarker: PoseLandmarker | null = null;
+let movementPattern: MovementPattern = 'squat';
 let squatState: SquatState = createInitialSquatState();
+let pushUpState: PushUpState = createInitialPushUpState();
 
 /**
  * FPS telemetry — privacy first.
@@ -172,12 +180,16 @@ function handleFrame(request: Extract<VisionWorkerRequest, { type: 'FRAME' }>): 
     );
     recordFrameFps(request.timestampMs);
     const rawLandmarks = result.landmarks?.[0] ?? null;
+    const points = rawLandmarks ? toPoints(rawLandmarks) : null;
 
-    const analysis = analyzeSquatFrame(
-      rawLandmarks ? toPoints(rawLandmarks) : null,
-      squatState,
-    );
-    squatState = analysis.nextState;
+    let analysis;
+    if (movementPattern === 'push') {
+      analysis = analyzePushUpFrame(points, pushUpState);
+      pushUpState = analysis.nextState;
+    } else {
+      analysis = analyzeSquatFrame(points, squatState);
+      squatState = analysis.nextState;
+    }
 
     post({
       type: 'RESULTS',
@@ -200,7 +212,11 @@ function handleFrame(request: Extract<VisionWorkerRequest, { type: 'FRAME' }>): 
 
 ctx.addEventListener('message', (event) => {
   const request = event.data;
-  if (request.type === 'FRAME') {
+  if (request.type === 'INIT') {
+    movementPattern = request.movementPattern;
+    squatState = createInitialSquatState();
+    pushUpState = createInitialPushUpState();
+  } else if (request.type === 'FRAME') {
     handleFrame(request);
   }
 });

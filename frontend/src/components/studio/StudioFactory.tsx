@@ -1,4 +1,5 @@
 import type { BoostType } from '../../types/boost';
+import type { MovementPattern } from '../../workers/visionProtocol';
 import { MediaPipeCameraTracker } from './MediaPipeCameraTracker';
 import { SimpleTimerTracker } from './SimpleTimerTracker';
 
@@ -12,6 +13,12 @@ export interface StudioFactoryProps {
   durationSec?: number;
   /** When provided, the executed boost is reported as completed on finish. */
   boostId?: string;
+  /** Exercise id for per-exercise config persistence. */
+  exerciseId?: string;
+  /** Display name shown on the HUD and config modal. */
+  exerciseName?: string;
+  /** Movement pattern routed to the correct kinematics module. */
+  movementPattern?: MovementPattern;
 }
 
 /**
@@ -24,12 +31,34 @@ export interface StudioFactoryProps {
  * Kept strictly on the main thread for Milestone 2; the heavy MediaPipe
  * Web Worker pipeline arrives in the next milestone.
  */
-export function StudioFactory({ boostType, durationSec, boostId }: StudioFactoryProps) {
+export function StudioFactory({
+  boostType,
+  durationSec,
+  boostId,
+  exerciseId,
+  exerciseName,
+  movementPattern,
+}: StudioFactoryProps) {
   switch (boostType) {
     case 'VISION_REP':
-      return <MediaPipeCameraTracker durationSec={durationSec} boostId={boostId} />;
+      return (
+        <MediaPipeCameraTracker
+          durationSec={durationSec}
+          boostId={boostId}
+          exerciseId={exerciseId}
+          exerciseName={exerciseName}
+          movementPattern={movementPattern}
+        />
+      );
     case 'DURATION':
-      return <SimpleTimerTracker initialSeconds={durationSec} boostId={boostId} />;
+      return (
+        <SimpleTimerTracker
+          initialSeconds={durationSec}
+          boostId={boostId}
+          exerciseId={exerciseId}
+          exerciseName={exerciseName}
+        />
+      );
     default:
       return (
         <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 rounded-card bg-surface px-6 text-center">

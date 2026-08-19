@@ -310,7 +310,7 @@ export function CoachPage() {
       </div>
 
       {/* Input bar */}
-      <div className="fixed inset-x-0 bottom-16 z-30 border-t border-white/10 bg-ink/90 px-4 py-3 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-28 z-30 border-t border-white/10 bg-ink/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center gap-3">
           <input
             ref={inputRef}

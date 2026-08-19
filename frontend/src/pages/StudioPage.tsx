@@ -108,6 +108,8 @@ export function StudioPage() {
           boostType={boost.exercise.boost_type}
           durationSec={durationSec}
           boostId={boost.id}
+          exerciseName={boost.exercise.name_translations.en ?? 'Exercise'}
+          movementPattern={boost.exercise.movement_pattern as 'squat' | 'push'}
         />
       )}
     </div>

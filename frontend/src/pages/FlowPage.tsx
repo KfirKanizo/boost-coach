@@ -1,32 +1,35 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Loader2, Play, RefreshCw, X } from 'lucide-react';
+import { Dumbbell, Loader2, Plus, RefreshCw, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import type { UserProfile } from '../api/client';
 import { BoostCard } from '../components/flow/BoostCard';
 import { EnergyMap } from '../components/flow/EnergyMap';
+import { FlowOverviewSheet } from '../components/flow/FlowOverviewSheet';
 import { SwapSheet } from '../components/flow/SwapSheet';
-import { StudioFactory } from '../components/studio/StudioFactory';
-import type { Boost, BoostType, Exercise } from '../types/boost';
+import type { Boost } from '../types/boost';
 import type { SwapReason } from '../types/swap';
+import type { RoutineExercise } from '../components/builder/RoutineEditor';
+import type { CustomRoutine } from './WorkoutBuilderPage';
+import { loadRoutines } from './WorkoutBuilderPage';
 
-const DEMO_TYPES: { label: string; value: BoostType }[] = [
-  { label: 'Vision Rep', value: 'VISION_REP' },
-  { label: 'Duration', value: 'DURATION' },
-];
+const MAX_ROUTINES = 4;
 
 export function FlowPage() {
   const navigate = useNavigate();
-  const [environment, setEnvironment] = useState<'Home' | 'Gym'>('Home');
-  const [demoType, setDemoType] = useState<BoostType>('DURATION');
-
   const [boosts, setBoosts] = useState<Boost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [swapBoostId, setSwapBoostId] = useState<string | null>(null);
 
-  // Exercise catalogue
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  // Custom routines from Preferences
+  const [routines, setRoutines] = useState<CustomRoutine[]>([]);
+
+  // Pre-flight sheet
+  const [selectedRoutine, setSelectedRoutine] = useState<CustomRoutine | null>(null);
+
+  // User profile (streak for EnergyMap)
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const loadBoosts = useCallback(async () => {
     setLoading(true);
@@ -41,30 +44,40 @@ export function FlowPage() {
     }
   }, []);
 
-  const loadExercises = useCallback(async () => {
+  const loadProfile = useCallback(async () => {
     try {
-      const data = await api.getExercises();
-      setExercises(data);
+      const data = await api.getUserProfile();
+      setProfile(data);
     } catch {
-      // Silent — exercise picker degrades gracefully when unavailable.
+      // Silent — EnergyMap degrades gracefully without streak data.
+    }
+  }, []);
+
+  const loadCustomRoutines = useCallback(async () => {
+    try {
+      const data = await loadRoutines();
+      setRoutines(data);
+    } catch {
+      // Silent — custom flows section degrades gracefully.
     }
   }, []);
 
   useEffect(() => {
     void loadBoosts();
-    void loadExercises();
-  }, [loadBoosts, loadExercises]);
+    void loadProfile();
+    void loadCustomRoutines();
+  }, [loadBoosts, loadProfile, loadCustomRoutines]);
 
-  // Re-fetch whenever the window regains focus (e.g. returning from the
-  // studio or from the background) so the Energy Map and cards reflect the
-  // just-completed status immediately.
+  // Re-fetch routines + boosts whenever the window regains focus
+  // (e.g. returning from the builder or studio).
   useEffect(() => {
     const handleFocus = () => {
       void loadBoosts();
+      void loadCustomRoutines();
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [loadBoosts]);
+  }, [loadBoosts, loadCustomRoutines]);
 
   const handleSwapConfirm = useCallback(
     async (reason: SwapReason) => {
@@ -79,105 +92,81 @@ export function FlowPage() {
   );
 
   const swapBoost = boosts.find((boost) => boost.id === swapBoostId);
-  const completedToday = boosts.filter((boost) => boost.status === 'completed').length;
 
-  const firstPending = boosts.find((boost) => boost.status === 'pending');
-  const hasPending = firstPending !== undefined;
-  const executeDisabled = loading || error !== null || !hasPending;
-  const executeLabel =
-    !loading && error === null && !hasPending ? 'DONE' : 'Execute';
+  const canCreateMore = routines.length < MAX_ROUTINES;
 
-  const handleExecute = () => {
-    if (!firstPending) return;
-    navigate(`/studio/${firstPending.id}`, {
-      state: { boost: firstPending },
-    });
-  };
+  const handleStartWorkout = useCallback(
+    (exercises: RoutineExercise[]) => {
+      console.log('Initiating Runner with session data: ', exercises);
+      setSelectedRoutine(null);
+    },
+    [],
+  );
 
   return (
     <div className="pb-28 pt-4">
-      {/* Environment toggle */}
-      <div className="mb-8 flex justify-center px-4">
-        <div className="relative flex w-full max-w-[240px] rounded-full bg-surface p-1">
-          <div
-            className={`absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-neon transition-transform duration-300 ${
-              environment === 'Gym' ? 'translate-x-full' : ''
-            }`}
-          />
-          {(['Home', 'Gym'] as const).map((env) => (
+      <EnergyMap completedDays={profile?.current_streak ?? 0} />
+
+      {/* Custom Flows section */}
+      <div className="mt-8 px-4">
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-ash">
+          My Custom Flows
+        </h2>
+
+        {/* Empty state */}
+        {routines.length === 0 && (
+          <div className="rounded-card border border-dashed border-white/10 py-10 text-center">
+            <Dumbbell size={28} className="mx-auto mb-3 text-ash/40" />
+            <p className="text-sm font-semibold text-paper">
+              You haven&apos;t built any flows yet
+            </p>
+            <p className="mt-1 text-xs text-ash">
+              Create a custom routine to get started
+            </p>
+          </div>
+        )}
+
+        {/* Routine cards */}
+        <div className="flex flex-col gap-3">
+          {routines.map((routine) => (
             <button
-              key={env}
+              key={routine.id}
               type="button"
-              onClick={() => setEnvironment(env)}
-              className={`relative z-10 flex-1 py-2 text-sm font-medium transition-colors ${
-                environment === env ? 'text-ink' : 'text-ash'
-              }`}
+              onClick={() => setSelectedRoutine(routine)}
+              className="group flex items-center gap-4 rounded-card bg-surface p-4 text-left transition-all hover:bg-white/[0.07] active:scale-[0.98]"
             >
-              {env}
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-neon/10 text-neon transition-colors group-hover:bg-neon/15">
+                <Play size={20} fill="currentColor" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold text-paper">
+                  {routine.name}
+                </span>
+                <span className="text-xs text-ash">
+                  {routine.exercises.length}{' '}
+                  {routine.exercises.length === 1 ? 'exercise' : 'exercises'}
+                </span>
+              </div>
             </button>
           ))}
         </div>
+
+        {/* Create Custom Flow CTA — hidden when at max */}
+        {canCreateMore && (
+          <button
+            type="button"
+            onClick={() => navigate('/builder')}
+            className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-card border border-dashed border-neon/40 bg-neon/5 py-4 text-neon transition-all hover:bg-neon/10 hover:border-neon/60 active:scale-[0.98]"
+          >
+            <Plus size={20} strokeWidth={2.5} />
+            <span className="text-sm font-bold uppercase tracking-wider">
+              Create Custom Flow
+            </span>
+          </button>
+        )}
       </div>
 
-      <EnergyMap completedDays={completedToday} />
-
-      {/* Exercise Picker — horizontal scroll */}
-      {exercises.length > 0 && (
-        <div className="mt-8 px-4">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
-            Pick an Exercise
-          </h2>
-          <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
-            {exercises.map((ex) => {
-              const name = ex.name_translations.en ?? ex.id;
-              const isActive = selectedExercise?.id === ex.id;
-              return (
-                <button
-                  key={ex.id}
-                  type="button"
-                  onClick={() => setSelectedExercise(isActive ? null : ex)}
-                  className={`flex-shrink-0 rounded-card px-4 py-3 text-left transition-colors ${
-                    isActive
-                      ? 'bg-neon text-ink'
-                      : 'bg-surface text-paper hover:bg-white/10'
-                  }`}
-                >
-                  <span className="block whitespace-nowrap text-sm font-semibold">
-                    {name}
-                  </span>
-                  <span className="mt-0.5 block whitespace-nowrap text-[10px] uppercase tracking-widest text-ash">
-                    {ex.equipment_required} · {ex.boost_type.replace('_', ' ')}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Inline execution panel — appears when an exercise is selected */}
-      {selectedExercise && (
-        <div className="mt-6 px-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-ash">
-              {selectedExercise.name_translations.en ?? 'Exercise'}
-            </h2>
-            <button
-              type="button"
-              aria-label="Close exercise"
-              onClick={() => setSelectedExercise(null)}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:text-paper"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <StudioFactory
-            boostType={selectedExercise.boost_type}
-            durationSec={60}
-          />
-        </div>
-      )}
-
+      {/* Today's Flow */}
       <div className="mt-8 flex flex-col gap-4 px-4">
         <h2 className="text-sm font-bold uppercase tracking-wider text-ash">
           Today&apos;s Flow
@@ -226,56 +215,19 @@ export function FlowPage() {
           ))}
       </div>
 
-      {/* Studio Factory preview */}
-      <div className="mt-10 px-4">
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
-          Studio Factory Preview
-        </h2>
-        <div className="mb-3 flex gap-2">
-          {DEMO_TYPES.map(({ label, value }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setDemoType(value)}
-              className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-colors ${
-                demoType === value
-                  ? 'bg-neon text-ink'
-                  : 'bg-surface text-ash hover:text-paper'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <StudioFactory boostType={demoType} />
-      </div>
-
-      {/* Execute FAB */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-4">
-        <button
-          type="button"
-          onClick={handleExecute}
-          disabled={executeDisabled}
-          className={`pointer-events-auto flex w-full max-w-sm items-center justify-center gap-2 rounded-full py-4 text-xl font-black uppercase tracking-widest transition-all ${
-            executeDisabled
-              ? 'bg-white/10 text-ash'
-              : 'bg-neon text-ink shadow-neon-glow hover:shadow-neon-glow-strong active:scale-95'
-          }`}
-        >
-          {executeDisabled ? (
-            <Check size={24} />
-          ) : (
-            <Play size={24} fill="currentColor" />
-          )}
-          {executeLabel}
-        </button>
-      </div>
-
       {swapBoost && (
         <SwapSheet
           exerciseName={swapBoost.exercise.name_translations.en ?? 'Exercise'}
           onClose={() => setSwapBoostId(null)}
           onConfirm={handleSwapConfirm}
+        />
+      )}
+
+      {selectedRoutine && (
+        <FlowOverviewSheet
+          routine={selectedRoutine}
+          onStart={handleStartWorkout}
+          onClose={() => setSelectedRoutine(null)}
         />
       )}
     </div>

@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -38,7 +37,11 @@ describe('SimpleTimerTracker', () => {
 
     renderTimer({ initialSeconds: 2, boostId: 'b-1' });
 
+    // Starts in ready state showing the countdown value.
     expect(screen.getByText('2')).toBeInTheDocument();
+
+    // Click Start to begin the countdown.
+    fireEvent.click(screen.getByRole('button', { name: /start/i }));
 
     await act(async () => {
       vi.advanceTimersByTime(1000);
@@ -61,7 +64,7 @@ describe('SimpleTimerTracker', () => {
     expect(screen.getByText('The Flow')).toBeInTheDocument();
   });
 
-  it('finishes the set early via the Finish Set button', async () => {
+  it('stops early via the Stop button and shows set complete', async () => {
     vi.mocked(api.completeBoost).mockResolvedValue({
       queued: true,
       boost: null,
@@ -69,7 +72,11 @@ describe('SimpleTimerTracker', () => {
 
     renderTimer({ initialSeconds: 120, boostId: 'b-1' });
 
-    await userEvent.click(screen.getByRole('button', { name: /finish set/i }));
+    // Start the timer.
+    fireEvent.click(screen.getByRole('button', { name: /start/i }));
+
+    // Stop early.
+    fireEvent.click(screen.getByRole('button', { name: /stop/i }));
 
     expect(await screen.findByText('Set complete')).toBeInTheDocument();
     expect(api.completeBoost).toHaveBeenCalledWith('b-1', { duration_sec: 120 });
@@ -79,6 +86,9 @@ describe('SimpleTimerTracker', () => {
     vi.useFakeTimers();
 
     renderTimer({ initialSeconds: 1 });
+
+    // Start the timer.
+    fireEvent.click(screen.getByRole('button', { name: /start/i }));
 
     await act(async () => {
       vi.advanceTimersByTime(1000);
@@ -96,6 +106,9 @@ describe('SimpleTimerTracker', () => {
     renderTimer({ initialSeconds: 10 });
 
     expect(screen.getByText('10')).toBeInTheDocument();
+
+    // Start the timer.
+    fireEvent.click(screen.getByRole('button', { name: /start/i }));
 
     // Pause — use fireEvent to avoid userEvent fake-timer conflict
     fireEvent.click(screen.getByRole('button', { name: /pause/i }));

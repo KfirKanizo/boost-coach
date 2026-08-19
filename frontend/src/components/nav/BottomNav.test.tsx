@@ -5,10 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { BottomNav } from './BottomNav';
 
 describe('BottomNav', () => {
-  it('renders the three navigation tabs', () => {
+  it('renders the four navigation tabs', () => {
     render(<BottomNav activeTab="flow" onTabChange={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: /The Flow/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Exercises/ })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /The Coach/ }),
     ).toBeInTheDocument();

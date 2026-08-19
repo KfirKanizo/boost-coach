@@ -66,36 +66,71 @@ const pose33 = (): LandmarkPoint[] => {
   return points;
 };
 
+/**
+ * Drive the tracker from initializing → ready by emitting a READY message
+ * from the worker (camera is already mocked as ready in setupTests).
+ */
+async function waitForReady() {
+  const worker = getFakeWorkers().at(-1);
+  expect(worker).toBeDefined();
+  await act(async () => {
+    worker?.emit({ type: 'READY' });
+  });
+  // Flush the getUserMedia + captureFrame microtask chain.
+  await act(async () => {});
+}
+
+/**
+ * Emit a RESULTS frame with repCount > 0 to trigger smart start (active).
+ */
+async function triggerSmartStart() {
+  const worker = getFakeWorkers().at(-1);
+  await act(async () => {
+    worker?.emit({
+      type: 'RESULTS',
+      frame: {
+        landmarks: pose33(),
+        repCount: 1,
+        phase: 'squat',
+        warning: null,
+      },
+    });
+  });
+}
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
 });
 
 describe('MediaPipeCameraTracker', () => {
-  it('shows the countdown from durationSec', async () => {
+  it('shows ready overlay with exercise name and settings gear', async () => {
     renderTracker({ durationSec: 90 });
 
-    expect(await screen.findByText('1:30')).toBeInTheDocument();
+    await waitForReady();
+
     expect(screen.getByText('Vision Boost')).toBeInTheDocument();
     expect(screen.getByText('VISION_REP')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Start when ready/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Exercise settings/ }),
+    ).toBeInTheDocument();
   });
 
   it('reflects worker results in the HUD and hides the loading overlay', async () => {
     renderTracker({ durationSec: 30 });
 
-    const worker = getFakeWorkers().at(-1);
-    expect(worker).toBeDefined();
-
-    // Worker finishes model load.
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    // Flush the getUserMedia microtask chain.
-    await act(async () => {});
+    await waitForReady();
 
     expect(screen.queryByText('Loading motion model…')).not.toBeInTheDocument();
 
     // Worker reports a squat frame with a knee-valgus warning.
+    // Trigger smart start first so the HUD elements become visible.
+    await triggerSmartStart();
+
+    const worker = getFakeWorkers().at(-1);
     await act(async () => {
       worker?.emit({
         type: 'RESULTS',
@@ -129,14 +164,13 @@ describe('MediaPipeCameraTracker', () => {
     vi.useFakeTimers();
     renderTracker({ durationSec: 1 });
 
-    const worker = getFakeWorkers().at(-1);
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    await act(async () => {});
+    await waitForReady();
+    await triggerSmartStart();
+
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
+    await act(async () => {});
 
     expect(api.completeBoost).not.toHaveBeenCalled();
     expect(screen.getByText('Set complete')).toBeInTheDocument();
@@ -148,18 +182,16 @@ describe('MediaPipeCameraTracker', () => {
 
     renderTracker({ durationSec: 1, boostId: 'b-1' });
 
-    const worker = getFakeWorkers().at(-1);
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    await act(async () => {});
+    await waitForReady();
+    await triggerSmartStart();
+
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
     await act(async () => {});
 
     expect(api.completeBoost).toHaveBeenCalledWith('b-1', {
-      reps_completed: 0,
+      reps_completed: 1,
       duration_sec: 1,
     });
     expect(
@@ -176,11 +208,9 @@ describe('MediaPipeCameraTracker', () => {
 
     renderTracker({ durationSec: 1, boostId: 'b-1' });
 
-    const worker = getFakeWorkers().at(-1);
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    await act(async () => {});
+    await waitForReady();
+    await triggerSmartStart();
+
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
@@ -200,11 +230,9 @@ describe('MediaPipeCameraTracker', () => {
 
     renderTracker({ durationSec: 1, boostId: 'b-1' });
 
-    const worker = getFakeWorkers().at(-1);
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    await act(async () => {});
+    await waitForReady();
+    await triggerSmartStart();
+
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
@@ -224,11 +252,9 @@ describe('MediaPipeCameraTracker', () => {
     vi.useFakeTimers();
     renderTracker({ durationSec: 1 });
 
-    const worker = getFakeWorkers().at(-1);
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    await act(async () => {});
+    await waitForReady();
+    await triggerSmartStart();
+
     await act(async () => {
       vi.advanceTimersByTime(2500);
     });
@@ -241,14 +267,9 @@ describe('MediaPipeCameraTracker', () => {
   it('forwards anonymized FPS telemetry from the worker', async () => {
     renderTracker({ durationSec: 60 });
 
+    await waitForReady();
+
     const worker = getFakeWorkers().at(-1);
-    expect(worker).toBeDefined();
-
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    await act(async () => {});
-
     await act(async () => {
       worker?.emit({ type: 'TELEMETRY', fps: 27.3, framesProcessed: 90 });
     });
@@ -265,11 +286,10 @@ describe('MediaPipeCameraTracker', () => {
 
     renderTracker({ durationSec: 1, boostId: 'b-1' });
 
+    await waitForReady();
+    await triggerSmartStart();
+
     const worker = getFakeWorkers().at(-1);
-    await act(async () => {
-      worker?.emit({ type: 'READY' });
-    });
-    await act(async () => {});
     await act(async () => {
       worker?.emit({ type: 'TELEMETRY', fps: 30, framesProcessed: 10 });
     });

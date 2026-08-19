@@ -1,0 +1,639 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Camera,
+  Flag,
+  Pause,
+  Play,
+  RefreshCw,
+  ShieldAlert,
+} from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+import { SkeletonOverlay } from '../studio/SkeletonOverlay';
+import type {
+  LandmarkPoint,
+  ExercisePhase,
+  ExerciseWarning,
+  MovementPattern,
+  VisionWorkerResponse,
+} from '../../workers/visionProtocol';
+
+import type { RoutineExercise } from '../builder/RoutineEditor';
+import { CompletionScreen } from './CompletionScreen';
+import { RestOverlay } from './RestOverlay';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type RunnerPhase = 'loading' | 'ready' | 'active' | 'resting' | 'completed' | 'error';
+
+interface WorkoutLocationState {
+  sessionExercises: RoutineExercise[];
+}
+
+/** Describes a completed exercise for the summary screen. */
+interface CompletedExercise {
+  name: string;
+  sets: number;
+  repsPerSet: number;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const CAMERA_FACING_MODE: 'user' | 'environment' = 'user';
+
+const PHASE_LABELS: Record<ExercisePhase, string> = {
+  get_ready: 'GET READY',
+  squat: 'SQUAT',
+  stand_up: 'STAND UP',
+  down: 'DOWN',
+  up: 'UP',
+};
+
+// ---------------------------------------------------------------------------
+// WorkoutRunner
+// ---------------------------------------------------------------------------
+
+/**
+ * Camera-driven multi-exercise workout runner.
+ *
+ * Receives an array of `RoutineExercise` from route state and orchestrates
+ * the entire hands-free session: per-set rep tracking via the vision worker,
+ * automatic rest-countdown transitions, exercise-to-exercise advancement, and
+ * a final completion summary.
+ *
+ * Route: `/workout`  — state: `{ sessionExercises: RoutineExercise[] }`
+ */
+export function WorkoutRunner() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const sessionExercises = useMemo(() => {
+    const state = location.state as WorkoutLocationState | null;
+    return state?.sessionExercises ?? [];
+  }, [location.state]);
+
+  // ── Redirect guard ─────────────────────────────────────────────────
+  const redirectingRef = useRef(false);
+  useEffect(() => {
+    if (redirectingRef.current) return;
+    if (!sessionExercises || sessionExercises.length === 0) {
+      redirectingRef.current = true;
+      navigate('/', { replace: true });
+    }
+  }, [sessionExercises, navigate]);
+
+  // ── Runner state ───────────────────────────────────────────────────
+  const [phase, setPhase] = useState<RunnerPhase>('loading');
+  const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [setIndex, setSetIndex] = useState(0); // 0-indexed within current exercise
+  const [localRepCount, setLocalRepCount] = useState(0);
+  const [restRemaining, setRestRemaining] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('Initializing camera...');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Camera / vision state
+  const [landmarks, setLandmarks] = useState<LandmarkPoint[] | null>(null);
+  const [warning, setWarning] = useState<ExerciseWarning | null>(null);
+  const [aspectRatio, setAspectRatio] = useState(3 / 4);
+
+  // ── Refs ───────────────────────────────────────────────────────────
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const workerReadyRef = useRef(false);
+  const cameraReadyRef = useRef(false);
+  const processingRef = useRef(false);
+  const captureInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+  const workerStartRepCountRef = useRef(0);
+  const workerRepCountRef = useRef(0);
+  const pauseLockRef = useRef(false); // blocks rep processing while paused
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Derived values ─────────────────────────────────────────────────
+  const currentExercise = sessionExercises[exerciseIndex];
+  const targetReps = currentExercise?.reps ?? 12;
+  const totalSets = currentExercise?.sets ?? 3;
+  const restDuration = currentExercise?.restSeconds ?? 30;
+  const isLastExercise = exerciseIndex >= sessionExercises.length - 1;
+  const isLastSet = setIndex >= totalSets - 1;
+
+  // ── Camera helpers ─────────────────────────────────────────────────
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  const captureFrame = useCallback(() => {
+    const video = videoRef.current;
+    const worker = workerRef.current;
+    if (!video || !worker || !workerReadyRef.current) return;
+    if (video.readyState < 2 || video.videoWidth === 0) return;
+    if (processingRef.current || captureInFlightRef.current) return;
+    if (pauseLockRef.current) return;
+
+    captureInFlightRef.current = true;
+    createImageBitmap(video)
+      .then((bitmap) => {
+        captureInFlightRef.current = false;
+        processingRef.current = true;
+        worker.postMessage(
+          { type: 'FRAME', bitmap, timestampMs: performance.now() },
+          [bitmap],
+        );
+      })
+      .catch(() => {
+        captureInFlightRef.current = false;
+      });
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !navigator.mediaDevices?.getUserMedia) {
+      if (mountedRef.current) {
+        setErrorMessage('Camera API is not available in this browser.');
+        setPhase('error');
+      }
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: CAMERA_FACING_MODE },
+        audio: false,
+      });
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      streamRef.current = stream;
+      video.muted = true;
+      video.srcObject = stream;
+
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        await playPromise.catch((err: unknown) => {
+          console.warn('Video play interrupted:', err);
+        });
+      }
+      if (!mountedRef.current) return;
+
+      cameraReadyRef.current = true;
+      setPhase((current) => {
+        if (current === 'error' || current === 'completed') return current;
+        return workerReadyRef.current ? 'ready' : 'loading';
+      });
+      captureFrame();
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setErrorMessage(
+        error instanceof DOMException && error.name === 'NotAllowedError'
+          ? 'Camera access denied. Enable the camera permission and retry.'
+          : error instanceof Error
+            ? error.message
+            : String(error),
+      );
+      setPhase('error');
+    }
+  }, [captureFrame]);
+
+  // ── Worker ─────────────────────────────────────────────────────────
+  const createWorker = useCallback(() => {
+    const worker = new Worker(
+      new URL('../../workers/visionWorker.ts', import.meta.url),
+      { type: 'module' },
+    );
+    workerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent<VisionWorkerResponse>) => {
+      const message = event.data;
+
+      if (message.type === 'READY') {
+        workerReadyRef.current = true;
+        const pattern: MovementPattern =
+          currentExercise?.movementPattern === 'push' ? 'push' : 'squat';
+        worker.postMessage({ type: 'INIT', movementPattern: pattern });
+        setPhase((current) => {
+          if (current === 'error' || current === 'completed') return current;
+          return cameraReadyRef.current ? 'ready' : 'loading';
+        });
+        captureFrame();
+      } else if (message.type === 'RESULTS') {
+        processingRef.current = false;
+
+        // Track worker's absolute rep count
+        workerRepCountRef.current = message.frame.repCount;
+        setLandmarks(message.frame.landmarks);
+        setWarning(message.frame.warning);
+
+        // Calculate local reps (since start of current set)
+        if (!pauseLockRef.current) {
+          const local = Math.max(
+            0,
+            message.frame.repCount - workerStartRepCountRef.current,
+          );
+          setLocalRepCount(local);
+
+          // Smart start: activate on first rep
+          setPhase((current) => {
+            if (current === 'ready' && local > 0) return 'active';
+            return current;
+          });
+        }
+
+        captureFrame();
+      } else if (message.type === 'TELEMETRY') {
+        // Ignored in runner — no telemetry reporting needed
+      } else if (message.type === 'ERROR') {
+        processingRef.current = false;
+        setErrorMessage(message.message);
+        setPhase('error');
+        stopCamera();
+      }
+    };
+
+    worker.onerror = (event) => {
+      processingRef.current = false;
+      setErrorMessage(event.message || 'Vision worker crashed.');
+      setPhase('error');
+      stopCamera();
+    };
+  }, [captureFrame, currentExercise, stopCamera]);
+
+  /** Terminate worker + stop camera (used between exercises) */
+  const teardownVision = useCallback(() => {
+    if (transitionTimerRef.current !== null) {
+      clearTimeout(transitionTimerRef.current);
+      transitionTimerRef.current = null;
+    }
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    workerReadyRef.current = false;
+    cameraReadyRef.current = false;
+    processingRef.current = false;
+    captureInFlightRef.current = false;
+    pauseLockRef.current = false;
+    workerRepCountRef.current = 0;
+    workerStartRepCountRef.current = 0;
+    setLandmarks(null);
+    setWarning(null);
+    stopCamera();
+  }, [stopCamera]);
+
+  // ── Boot camera + worker on mount ──────────────────────────────────
+  useEffect(() => {
+    if (sessionExercises.length === 0) return;
+    mountedRef.current = true;
+    setLoadingMessage('Initializing camera...');
+    void startCamera();
+    createWorker();
+    return () => {
+      mountedRef.current = false;
+      teardownVision();
+    };
+    // Only run on mount / when exercises change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Aspect ratio ───────────────────────────────────────────────────
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const update = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        setAspectRatio(video.videoWidth / video.videoHeight);
+      }
+    };
+    video.addEventListener('loadedmetadata', update);
+    return () => video.removeEventListener('loadedmetadata', update);
+  }, []);
+
+  // ── Rest countdown ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'resting') return;
+    if (restRemaining <= 0) {
+      // Rest finished → start next set
+      beginSet();
+      return;
+    }
+    const id = window.setInterval(() => {
+      setRestRemaining((s) => {
+        if (s <= 1) {
+          // Will trigger beginSet via the effect above
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+    // beginSet is stable (useCallback with no deps that change during resting)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, restRemaining]);
+
+  // ── Rep target reached → advance ───────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'active') return;
+    if (localRepCount < targetReps) return;
+
+    // Target hit! Determine next state.
+    if (!isLastSet) {
+      // More sets in this exercise → rest
+      beginRest();
+    } else if (!isLastExercise) {
+      // Last set of this exercise, more exercises → transition
+      advanceExercise();
+    } else {
+      // Done!
+      setPhase('completed');
+    }
+  }, [phase, localRepCount, targetReps, isLastSet, isLastExercise]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Set transitions ────────────────────────────────────────────────
+
+  /** Begin a rest period after a completed set. */
+  const beginRest = useCallback(() => {
+    pauseLockRef.current = true; // stop processing frames
+    setRestRemaining(restDuration);
+    setPhase('resting');
+  }, [restDuration]);
+
+  /** Start (or restart) the camera+worker for a new set/exercise. */
+  const beginSet = useCallback(() => {
+    pauseLockRef.current = false;
+    setLocalRepCount(0);
+    setSetIndex((prev) => prev + 1);
+    workerStartRepCountRef.current = workerRepCountRef.current;
+    setPhase('ready');
+  }, []);
+
+  /** Transition to the next exercise: tear down, brief pause, re-init. */
+  const advanceExercise = useCallback(() => {
+    teardownVision();
+    setIsTransitioning(true);
+    setSetIndex(0);
+    setLocalRepCount(0);
+
+    const nextIndex = exerciseIndex + 1;
+    setExerciseIndex(nextIndex);
+
+    // Brief transition delay, then re-init camera + worker
+    transitionTimerRef.current = window.setTimeout(() => {
+      transitionTimerRef.current = null;
+      if (!mountedRef.current) return;
+      setIsTransitioning(false);
+      setLoadingMessage(
+        `Get ready — ${sessionExercises[nextIndex]?.exerciseName ?? 'Next exercise'}`,
+      );
+      void startCamera();
+      createWorker();
+    }, 1200);
+  }, [exerciseIndex, sessionExercises, teardownVision, startCamera, createWorker]);
+
+  /** Skip the current rest period and jump to the next set. */
+  const skipRest = useCallback(() => {
+    setRestRemaining(0);
+    // beginSet will be triggered by the rest countdown effect
+  }, []);
+
+  // ── Pause / Resume ─────────────────────────────────────────────────
+  const togglePause = useCallback(() => {
+    setPhase((current) => {
+      if (current === 'active') {
+        pauseLockRef.current = true;
+        return 'active'; // stay active but locked
+      }
+      return current;
+    });
+  }, []);
+
+  // ── Error retry ────────────────────────────────────────────────────
+  const handleRetry = useCallback(() => {
+    teardownVision();
+    setErrorMessage(null);
+    setLocalRepCount(0);
+    setLoadingMessage('Re-initializing...');
+    setPhase('loading');
+    void startCamera();
+    createWorker();
+  }, [teardownVision, startCamera, createWorker]);
+
+  // ── Return to dashboard ────────────────────────────────────────────
+  const handleReturn = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  // ── Early exit guard ───────────────────────────────────────────────
+  if (!sessionExercises || sessionExercises.length === 0) return null;
+
+  // ── Derived HUD values ─────────────────────────────────────────────
+  const isActive = phase === 'active';
+  const isPaused = false; // simplicity for now — we don't show paused UI separately
+  const progressPct =
+    targetReps > 0 ? Math.min(100, (localRepCount / targetReps) * 100) : 0;
+
+  // Completed exercises for summary
+  const completedExercises: CompletedExercise[] = [];
+  for (let i = 0; i < exerciseIndex; i++) {
+    const ex = sessionExercises[i];
+    completedExercises.push({
+      name: ex.exerciseName,
+      sets: ex.sets,
+      repsPerSet: ex.reps,
+    });
+  }
+  // Current exercise also completed if we're in completed phase
+  if (phase === 'completed' && currentExercise) {
+    completedExercises.push({
+      name: currentExercise.exerciseName,
+      sets: currentExercise.sets,
+      repsPerSet: currentExercise.reps,
+    });
+  }
+
+  // Next label for rest overlay
+  const nextSetNum = setIndex + 2; // next set (1-indexed)
+  const nextRestLabel =
+    !isLastSet
+      ? `Set ${nextSetNum} of ${currentExercise?.exerciseName}`
+      : !isLastExercise
+        ? sessionExercises[exerciseIndex + 1]?.exerciseName ?? 'Next exercise'
+        : '';
+
+  return (
+    <div
+      className="relative flex w-full flex-col overflow-hidden rounded-card bg-black"
+      style={{ aspectRatio }}
+    >
+      {/* ── Camera feed ──────────────────────────────────────────────── */}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 h-full w-full object-cover"
+        playsInline
+        muted
+        autoPlay
+        aria-label="Live camera feed"
+      />
+      {landmarks && <SkeletonOverlay landmarks={landmarks} warning={warning} />}
+
+      {/* ── Top HUD (always visible except loading/completed) ─────────── */}
+      {phase !== 'loading' && phase !== 'completed' && phase !== 'error' && (
+        <div className="absolute left-0 right-0 top-0 z-40 flex items-start justify-between p-4">
+          <div>
+            <h2 className="font-display text-xl font-bold tracking-tight text-paper drop-shadow">
+              {currentExercise?.exerciseName}
+            </h2>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="inline-block rounded-full border border-neon/30 bg-neon/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-neon">
+                Set {setIndex + 1} / {totalSets}
+              </span>
+              <span className="inline-block rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ash">
+                {exerciseIndex + 1}/{sessionExercises.length}
+              </span>
+            </div>
+          </div>
+
+          {isActive && (
+            <div className="text-right">
+              <div className="font-timer text-3xl font-bold leading-none text-paper drop-shadow">
+                {localRepCount}
+                <span className="ml-1 text-lg text-ash">/{targetReps}</span>
+              </div>
+              <div className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-ash">
+                reps
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Ready overlay (waiting for first rep) ─────────────────────── */}
+      {phase === 'ready' && (
+        <div className="absolute inset-x-0 bottom-28 z-40 flex justify-center px-4">
+          <div className="rounded-full border border-neon/30 bg-ink/70 px-5 py-2 backdrop-blur">
+            <span className="text-xs font-bold uppercase tracking-widest text-neon animate-pulse">
+              Start when ready — first rep begins the set
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Active phase — rep progress + phase label ─────────────────── */}
+      {isActive && (
+        <>
+          {/* Rep progress bar */}
+          <div className="absolute bottom-20 left-4 right-4 z-40">
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-neon transition-all duration-300 ease-out"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Phase label */}
+          <div className="absolute bottom-28 right-4 z-40 rounded-full border border-white/10 bg-ink/70 px-4 py-1.5 backdrop-blur">
+            <span className="text-xs font-bold uppercase tracking-widest text-paper">
+              {PHASE_LABELS[warning === 'pose_lost' ? 'get_ready' : 'squat']}
+            </span>
+          </div>
+
+          {/* Posture warning */}
+          {warning === 'knee_valgus' && (
+            <div className="absolute bottom-36 left-0 right-0 z-40 mx-4 flex items-center gap-2 rounded-lg border border-crimson/40 bg-crimson/15 px-3 py-2 backdrop-blur">
+              <ShieldAlert size={14} className="shrink-0 text-crimson" />
+              <span className="text-xs font-semibold text-paper">
+                Knees caving in — press them outward
+              </span>
+            </div>
+          )}
+
+          {/* Pause / Stop */}
+          <div className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 gap-3">
+            <button
+              type="button"
+              aria-label={isPaused ? 'Resume' : 'Pause'}
+              onClick={togglePause}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-ink/70 text-paper backdrop-blur transition-transform active:scale-90"
+            >
+              {isPaused ? <Play size={20} /> : <Pause size={20} />}
+            </button>
+            <button
+              type="button"
+              aria-label="End workout"
+              onClick={() => {
+                teardownVision();
+                setPhase('completed');
+              }}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-crimson/40 bg-crimson/20 text-crimson backdrop-blur transition-transform active:scale-90"
+            >
+              <Flag size={20} />
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Loading overlay ───────────────────────────────────────────── */}
+      {phase === 'loading' && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/70 backdrop-blur-sm">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-neon/30 bg-neon/10">
+            <Camera size={24} className="animate-pulse text-neon" />
+          </div>
+          <p className="max-w-[240px] text-center text-sm font-semibold text-paper">
+            {loadingMessage}
+          </p>
+        </div>
+      )}
+
+      {/* ── Transition overlay (between exercises) ────────────────────── */}
+      {isTransitioning && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-black/80 backdrop-blur">
+          <p className="text-xs font-bold uppercase tracking-widest text-neon">
+            Get Ready
+          </p>
+          <p className="font-display text-2xl font-black text-paper">
+            {sessionExercises[exerciseIndex + 1]?.exerciseName ?? 'Next'}
+          </p>
+          <p className="text-sm text-ash">Set 1 of {sessionExercises[exerciseIndex + 1]?.sets}</p>
+        </div>
+      )}
+
+      {/* ── Rest overlay ──────────────────────────────────────────────── */}
+      {phase === 'resting' && (
+        <RestOverlay
+          secondsRemaining={restRemaining}
+          totalSeconds={restDuration}
+          nextLabel={nextRestLabel}
+          onSkip={skipRest}
+        />
+      )}
+
+      {/* ── Error overlay ─────────────────────────────────────────────── */}
+      {phase === 'error' && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/80 p-6 text-center">
+          <ShieldAlert size={28} className="text-crimson" />
+          <p className="max-w-[280px] text-sm leading-relaxed text-paper">
+            {errorMessage}
+          </p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="mt-1 flex items-center gap-2 rounded-full bg-neon px-6 py-2.5 text-sm font-bold text-ink transition-transform active:scale-95"
+          >
+            <RefreshCw size={16} />
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* ── Completion screen ─────────────────────────────────────────── */}
+      {phase === 'completed' && (
+        <CompletionScreen exercises={completedExercises} onReturn={handleReturn} />
+      )}
+    </div>
+  );
+}
