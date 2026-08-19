@@ -12,6 +12,7 @@ export interface Exercise {
   movement_pattern: string;
   equipment_required: string;
   boost_type: BoostType;
+  animation_url?: string;
 }
 
 export interface Boost {

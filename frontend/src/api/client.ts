@@ -21,6 +21,7 @@ export interface RoutineItem {
     sets: number;
     reps: number;
     rest_seconds: number;
+    animation_url?: string;
   }[];
   schedule_days: number[] | null;
   created_at: string;
@@ -35,6 +36,7 @@ export interface RoutineCreatePayload {
     sets: number;
     reps: number;
     rest_seconds: number;
+    animation_url?: string;
   }[];
   schedule_days?: number[];
 }

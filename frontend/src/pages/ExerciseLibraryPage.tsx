@@ -53,6 +53,7 @@ function QuickStartSheet({ exercise, onClose }: QuickStartSheetProps) {
       sets,
       reps,
       restSeconds: rest,
+      animationUrl: exercise.animation_url,
     };
     navigate('/workout', { state: { sessionExercises: [sessionExercise] } });
   }, [exercise, name, sets, reps, rest, navigate]);

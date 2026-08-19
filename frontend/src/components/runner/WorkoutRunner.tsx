@@ -102,7 +102,6 @@ export function WorkoutRunner() {
   // Camera / vision state
   const [landmarks, setLandmarks] = useState<LandmarkPoint[] | null>(null);
   const [warning, setWarning] = useState<ExerciseWarning | null>(null);
-  const [aspectRatio, setAspectRatio] = useState(3 / 4);
 
   // ── Refs ───────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -316,19 +315,6 @@ export function WorkoutRunner() {
     };
     // Only run on mount / when exercises change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Aspect ratio ───────────────────────────────────────────────────
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const update = () => {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        setAspectRatio(video.videoWidth / video.videoHeight);
-      }
-    };
-    video.addEventListener('loadedmetadata', update);
-    return () => video.removeEventListener('loadedmetadata', update);
   }, []);
 
   // ── Rest countdown ─────────────────────────────────────────────────
@@ -623,8 +609,7 @@ export function WorkoutRunner() {
 
   return (
     <div
-      className="relative flex w-full flex-col overflow-hidden rounded-card bg-black"
-      style={{ aspectRatio }}
+      className="relative h-dvh w-full overflow-hidden bg-black"
     >
       {/* ── Camera feed ──────────────────────────────────────────────── */}
       <video
@@ -699,6 +684,18 @@ export function WorkoutRunner() {
                 : 'Start when ready — first rep begins the set'}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* ── Animation sidebar (exercise reference) ─────────────────────── */}
+      {(phase === 'ready' || isActive) && currentExercise?.animationUrl && (
+        <div className="absolute bottom-20 left-4 z-40 overflow-hidden rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
+          <img
+            src={currentExercise.animationUrl}
+            alt={`${currentExercise.exerciseName} demonstration`}
+            className="h-24 w-24 object-cover"
+            loading="lazy"
+          />
         </div>
       )}
 

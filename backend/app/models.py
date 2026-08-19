@@ -94,6 +94,7 @@ class Exercise(Base):
         String, index=True, nullable=False
     )
     boost_type: Mapped[str] = mapped_column(String, nullable=False)
+    animation_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class DailyBoost(Base):

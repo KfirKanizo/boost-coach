@@ -35,6 +35,7 @@ function toFrontendRoutine(item: import('../api/client').RoutineItem): CustomRou
       sets: ex.sets,
       reps: ex.reps,
       restSeconds: ex.rest_seconds,
+      animationUrl: ex.animation_url,
     })),
     scheduleDays: item.schedule_days,
     createdAt: item.created_at,
@@ -222,6 +223,7 @@ export function WorkoutBuilderPage() {
         sets: DEFAULT_SETS,
         reps: DEFAULT_REPS,
         restSeconds: DEFAULT_REST,
+        animationUrl: exercise.animation_url,
       },
     ]);
     setPickerOpen(false);

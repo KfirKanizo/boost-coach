@@ -12,6 +12,7 @@ export interface RoutineExercise {
   sets: number;
   reps: number;
   restSeconds: number;
+  animationUrl?: string;
 }
 
 // ---------------------------------------------------------------------------
