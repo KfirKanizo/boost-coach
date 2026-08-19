@@ -13,6 +13,7 @@ export interface RoutineExercise {
   reps: number;
   restSeconds: number;
   animationUrl?: string;
+  instructions?: string[];
 }
 
 // ---------------------------------------------------------------------------

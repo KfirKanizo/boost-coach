@@ -15,6 +15,7 @@ class RoutineExerciseItem(BaseModel):
     reps: int = 10
     rest_seconds: int = 60
     animation_url: Optional[str] = None
+    instructions: Optional[list[str]] = None
 
 
 class RoutineCreateRequest(BaseModel):

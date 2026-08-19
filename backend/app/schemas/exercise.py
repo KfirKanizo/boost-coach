@@ -1,6 +1,6 @@
 """Exercise response schemas."""
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -16,3 +16,4 @@ class ExerciseResponse(BaseModel):
     equipment_required: str
     boost_type: str
     animation_url: Optional[str] = None
+    instructions: Optional[List[str]] = None

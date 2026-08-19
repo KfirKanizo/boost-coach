@@ -176,6 +176,7 @@ async def seed_exercises(
         equipment = _map_equipment(item.get("equipment", ""))
         target = _map_target(item.get("bodyPart", ""))
         gif_url = item.get("gifUrl", "")
+        instructions = item.get("instructions", [])
 
         # Append rapidapi-key so the frontend <img> can render without 403
         if gif_url:
@@ -183,9 +184,14 @@ async def seed_exercises(
             gif_url = f"{gif_url}{sep}rapidapi-key={RAPIDAPI_KEY}"
 
         if existing:
-            # Update animation_url if we got a new one
+            changed = False
             if gif_url and existing.animation_url != gif_url:
                 existing.animation_url = gif_url
+                changed = True
+            if instructions and existing.instructions != instructions:
+                existing.instructions = instructions
+                changed = True
+            if changed:
                 updated += 1
             else:
                 skipped += 1
@@ -198,6 +204,7 @@ async def seed_exercises(
             equipment_required=equipment,
             boost_type=boost_type,
             animation_url=gif_url or None,
+            instructions=instructions or None,
         )
         db.add(exercise)
         inserted += 1

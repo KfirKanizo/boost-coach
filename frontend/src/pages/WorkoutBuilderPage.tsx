@@ -36,6 +36,7 @@ function toFrontendRoutine(item: import('../api/client').RoutineItem): CustomRou
       reps: ex.reps,
       restSeconds: ex.rest_seconds,
       animationUrl: ex.animation_url,
+      instructions: ex.instructions,
     })),
     scheduleDays: item.schedule_days,
     createdAt: item.created_at,
@@ -224,6 +225,7 @@ export function WorkoutBuilderPage() {
         reps: DEFAULT_REPS,
         restSeconds: DEFAULT_REST,
         animationUrl: exercise.animation_url,
+        instructions: exercise.instructions,
       },
     ]);
     setPickerOpen(false);
@@ -277,6 +279,7 @@ export function WorkoutBuilderPage() {
           reps: ex.reps,
           rest_seconds: ex.restSeconds,
           animation_url: ex.animationUrl,
+          instructions: ex.instructions,
         })),
         schedule_days: scheduleDays.length > 0 ? scheduleDays : undefined,
       });

@@ -22,6 +22,7 @@ export interface RoutineItem {
     reps: number;
     rest_seconds: number;
     animation_url?: string;
+    instructions?: string[];
   }[];
   schedule_days: number[] | null;
   created_at: string;
@@ -37,6 +38,7 @@ export interface RoutineCreatePayload {
     reps: number;
     rest_seconds: number;
     animation_url?: string;
+    instructions?: string[];
   }[];
   schedule_days?: number[];
 }

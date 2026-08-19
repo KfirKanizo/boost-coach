@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Camera,
   ChevronRight,
+  Dumbbell,
+  Info,
   RefreshCw,
   ShieldAlert,
   X,
@@ -98,6 +100,7 @@ export function WorkoutRunner() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   // Camera / vision state
   const [landmarks, setLandmarks] = useState<LandmarkPoint[] | null>(null);
@@ -124,6 +127,14 @@ export function WorkoutRunner() {
 
   // ── Derived values ─────────────────────────────────────────────────
   const currentExercise = sessionExercises[exerciseIndex];
+
+  // eslint-disable-next-line no-console
+  console.log('Runner Exercise:', {
+    animationUrl: currentExercise?.animationUrl,
+    instructions: currentExercise?.instructions,
+    exerciseName: currentExercise?.exerciseName,
+  });
+
   const isDurationExercise = currentExercise?.movementPattern === 'core';
   const targetReps = currentExercise?.reps ?? 12;
   const targetDurationSec = isDurationExercise ? targetReps : 0;
@@ -404,6 +415,7 @@ export function WorkoutRunner() {
     setSetIndex(0);
     setLocalRepCount(0);
     setHoldElapsed(0);
+    setShowInstructions(false);
 
     const nextIndex = exerciseIndex + 1;
     setExerciseIndex(nextIndex);
@@ -687,19 +699,60 @@ export function WorkoutRunner() {
         </div>
       )}
 
-      {/* ── Animation sidebar (exercise reference) ─────────────────────── */}
-      {(phase === 'ready' || isActive) && currentExercise?.animationUrl && (
-        <div className="absolute bottom-20 left-4 z-50 overflow-hidden rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
-          <img
-            src={
-              currentExercise.animationUrl.includes('rapidapi-key')
-                ? currentExercise.animationUrl
-                : `${currentExercise.animationUrl}?rapidapi-key=112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34`
-            }
-            alt={`${currentExercise.exerciseName} demonstration`}
-            className="h-24 w-24 object-cover"
-            loading="lazy"
-          />
+      {/* ── Animation sidebar + instructions (exercise reference) ────── */}
+      {(phase === 'ready' || isActive) && currentExercise && (
+        <div className="absolute bottom-20 left-4 z-50 flex flex-col gap-2">
+          {/* Animation card or placeholder */}
+          <div className="flex items-end gap-2">
+            {currentExercise.animationUrl ? (
+              <div className="overflow-hidden rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
+                <img
+                  src={
+                    currentExercise.animationUrl.includes('rapidapi-key')
+                      ? currentExercise.animationUrl
+                      : `${currentExercise.animationUrl}?rapidapi-key=112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34`
+                  }
+                  alt={`${currentExercise.exerciseName} demonstration`}
+                  className="h-24 w-24 object-cover"
+                  loading="lazy"
+                />
+              </div>
+            ) : (
+              <div className="flex h-24 w-24 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
+                <Dumbbell size={24} className="mb-1 text-ash" />
+                <span className="text-[9px] font-bold uppercase text-ash">No preview</span>
+              </div>
+            )}
+
+            {/* Instructions toggle */}
+            {currentExercise.instructions && currentExercise.instructions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowInstructions((v) => !v)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/30 backdrop-blur-md transition-colors hover:bg-black/50"
+                aria-label="Toggle instructions"
+              >
+                <Info size={14} className="text-neon" />
+              </button>
+            )}
+          </div>
+
+          {/* Instructions panel (collapsible) */}
+          {showInstructions && currentExercise.instructions && currentExercise.instructions.length > 0 && (
+            <div className="max-h-40 w-64 overflow-y-auto rounded-xl border border-white/10 bg-black/50 p-3 backdrop-blur-md">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neon">
+                How to perform
+              </p>
+              <ol className="space-y-1">
+                {currentExercise.instructions.map((step, i) => (
+                  <li key={i} className="text-[11px] leading-relaxed text-paper/80">
+                    <span className="mr-1 font-bold text-neon/70">{i + 1}.</span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
         </div>
       )}
 
