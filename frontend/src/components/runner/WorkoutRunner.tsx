@@ -689,9 +689,13 @@ export function WorkoutRunner() {
 
       {/* ── Animation sidebar (exercise reference) ─────────────────────── */}
       {(phase === 'ready' || isActive) && currentExercise?.animationUrl && (
-        <div className="absolute bottom-20 left-4 z-40 overflow-hidden rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
+        <div className="absolute bottom-20 left-4 z-50 overflow-hidden rounded-xl border border-white/10 bg-black/30 backdrop-blur-md">
           <img
-            src={currentExercise.animationUrl}
+            src={
+              currentExercise.animationUrl.includes('rapidapi-key')
+                ? currentExercise.animationUrl
+                : `${currentExercise.animationUrl}?rapidapi-key=112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34`
+            }
             alt={`${currentExercise.exerciseName} demonstration`}
             className="h-24 w-24 object-cover"
             loading="lazy"

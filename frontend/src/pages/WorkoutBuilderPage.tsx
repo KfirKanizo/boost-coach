@@ -276,6 +276,7 @@ export function WorkoutBuilderPage() {
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds,
+          animation_url: ex.animationUrl,
         })),
         schedule_days: scheduleDays.length > 0 ? scheduleDays : undefined,
       });
