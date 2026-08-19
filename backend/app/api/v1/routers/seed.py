@@ -181,18 +181,22 @@ async def seed_exercises(
         boost_type = _classify_boost_type(name)
         equipment = _map_equipment(item.get("equipment", ""))
         target = _map_target(item.get("bodyPart", ""))
-        gif_url = item.get("gifUrl", "")
         instructions = item.get("instructions", [])
 
-        # Append rapidapi-key so the frontend <img> can render without 403
-        if gif_url:
-            sep = "&" if "?" in gif_url else "?"
-            gif_url = f"{gif_url}{sep}rapidapi-key={RAPIDAPI_KEY}"
+        # Build animation URL via ExerciseDB Image Service (gifUrl is no
+        # longer returned in the payload — we must construct it from the
+        # exercise ID + a resolution parameter).
+        exercise_db_id = item.get("id", "")
+        animation_url = (
+            f"https://exercisedb.p.rapidapi.com/image?exerciseId={exercise_db_id}&resolution=360"
+            if exercise_db_id
+            else ""
+        )
 
         if existing:
             changed = False
-            if gif_url and existing.animation_url != gif_url:
-                existing.animation_url = gif_url
+            if animation_url and existing.animation_url != animation_url:
+                existing.animation_url = animation_url
                 changed = True
             if instructions and existing.instructions != instructions:
                 existing.instructions = instructions
@@ -209,7 +213,7 @@ async def seed_exercises(
             movement_pattern=movement,
             equipment_required=equipment,
             boost_type=boost_type,
-            animation_url=gif_url or None,
+            animation_url=animation_url or None,
             instructions=instructions or None,
         )
         db.add(exercise)
