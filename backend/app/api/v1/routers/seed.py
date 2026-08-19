@@ -66,10 +66,9 @@ def _classify_boost_type(name: str) -> str:
     return "VISION_REP"
 
 
-def _map_equipment(equipment: list[dict[str, Any]]) -> str:
-    """Map ExerciseDB equipment list to our simplified enum."""
-    names = [e.get("name", "").lower() for e in equipment]
-    if not names or names == ["body weight"]:
+def _map_equipment(equipment: str) -> str:
+    """Map ExerciseDB equipment string to our simplified enum."""
+    if not equipment or "body weight" in equipment.lower():
         return "bodyweight"
     return "weights"
 
