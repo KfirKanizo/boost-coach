@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Camera,
-  Flag,
-  Pause,
-  Play,
+  ChevronRight,
   RefreshCw,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -98,6 +97,7 @@ export function WorkoutRunner() {
   const [loadingMessage, setLoadingMessage] = useState('Initializing camera...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
   // Camera / vision state
   const [landmarks, setLandmarks] = useState<LandmarkPoint[] | null>(null);
@@ -118,6 +118,10 @@ export function WorkoutRunner() {
   const pauseLockRef = useRef(false); // blocks rep processing while paused
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isHoldingRef = useRef(false); // tracks whether worker reports 'holding' phase
+  const isEarlyExitRef = useRef(false); // true when user quit early — partial credit
+  const partialRepsRef = useRef(0); // accumulated reps at quit time
+  const partialDurationRef = useRef(0); // accumulated duration at quit time
+  const partialExerciseCountRef = useRef(0); // number of exercises with any work done
 
   // ── Derived values ─────────────────────────────────────────────────
   const currentExercise = sessionExercises[exerciseIndex];
@@ -437,17 +441,6 @@ export function WorkoutRunner() {
     // beginSet will be triggered by the rest countdown effect
   }, []);
 
-  // ── Pause / Resume ─────────────────────────────────────────────────
-  const togglePause = useCallback(() => {
-    setPhase((current) => {
-      if (current === 'active') {
-        pauseLockRef.current = true;
-        return 'active'; // stay active but locked
-      }
-      return current;
-    });
-  }, []);
-
   // ── Error retry ────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     teardownVision();
@@ -464,6 +457,69 @@ export function WorkoutRunner() {
     navigate('/');
   }, [navigate]);
 
+  /** Quit workout: tear down vision, record partial volume, transition to completion. */
+  const handleQuit = useCallback(() => {
+    // Calculate partial volume at this exact moment
+    let reps = 0;
+    let duration = 0;
+    let exercisesWithWork = 0;
+
+    // Fully completed exercises before current
+    for (let i = 0; i < exerciseIndex; i++) {
+      const ex = sessionExercises[i];
+      exercisesWithWork++;
+      if (ex.movementPattern === 'core') {
+        duration += ex.reps * ex.sets;
+      } else {
+        reps += ex.reps * ex.sets;
+      }
+    }
+
+    // Current exercise partial volume
+    if (currentExercise) {
+      // During resting, the set that just finished hasn't bumped setIndex yet
+      const setsCompleted = phase === 'resting' ? setIndex + 1 : setIndex;
+      const currentSetReps = phase === 'resting' ? 0 : (isDurationExercise ? 0 : localRepCount);
+      const currentSetDuration = phase === 'resting' ? 0 : (isDurationExercise ? holdElapsed : 0);
+
+      const exerciseReps = setsCompleted * currentExercise.reps + currentSetReps;
+      const exerciseDuration = setsCompleted * currentExercise.reps + currentSetDuration;
+
+      if (exerciseReps > 0 || exerciseDuration > 0) {
+        exercisesWithWork++;
+      }
+
+      if (isDurationExercise) {
+        duration += exerciseDuration;
+      } else {
+        reps += exerciseReps;
+      }
+    }
+
+    isEarlyExitRef.current = true;
+    partialRepsRef.current = reps;
+    partialDurationRef.current = duration;
+    partialExerciseCountRef.current = Math.max(exercisesWithWork, 1);
+
+    teardownVision();
+    setPhase('completed');
+  }, [
+    phase, exerciseIndex, sessionExercises, currentExercise, setIndex,
+    isDurationExercise, localRepCount, holdElapsed, teardownVision,
+  ]);
+
+  /** Force-advance: skip current set (or end workout if last set of last exercise). */
+  const handleSkipSet = useCallback(() => {
+    if (isLastSet && isLastExercise) {
+      teardownVision();
+      setPhase('completed');
+    } else if (isLastSet) {
+      advanceExercise();
+    } else {
+      beginRest();
+    }
+  }, [isLastSet, isLastExercise, teardownVision, advanceExercise, beginRest]);
+
   // ── Send completion payload to backend ─────────────────────────────
   const completionSentRef = useRef(false);
   useEffect(() => {
@@ -472,22 +528,34 @@ export function WorkoutRunner() {
     completionSentRef.current = true;
 
     const isSingle = sessionExercises.length === 1;
-    let totalReps = 0;
-    let totalDurationSec = 0;
+    const isEarlyExit = isEarlyExitRef.current;
 
-    for (const ex of sessionExercises) {
-      if (ex.movementPattern === 'core') {
-        totalDurationSec += ex.reps * ex.sets;
-      } else {
-        totalReps += ex.reps * ex.sets;
+    let totalReps: number;
+    let totalDurationSec: number;
+    let exerciseCount: number;
+
+    if (isEarlyExit) {
+      totalReps = partialRepsRef.current;
+      totalDurationSec = partialDurationRef.current;
+      exerciseCount = partialExerciseCountRef.current;
+    } else {
+      totalReps = 0;
+      totalDurationSec = 0;
+      for (const ex of sessionExercises) {
+        if (ex.movementPattern === 'core') {
+          totalDurationSec += ex.reps * ex.sets;
+        } else {
+          totalReps += ex.reps * ex.sets;
+        }
       }
+      exerciseCount = sessionExercises.length;
     }
 
     void api.completeWorkout({
       session_type: isSingle ? 'single' : 'flow',
       total_reps: totalReps,
       total_duration_seconds: totalDurationSec,
-      exercise_count: sessionExercises.length,
+      exercise_count: exerciseCount,
     }).catch(() => {
       // Silent — completion is best-effort; the user sees the screen either way.
     });
@@ -498,7 +566,6 @@ export function WorkoutRunner() {
 
   // ── Derived HUD values ─────────────────────────────────────────────
   const isActive = phase === 'active';
-  const isPaused = false; // simplicity for now — we don't show paused UI separately
   const progressPct = isDurationExercise
     ? targetDurationSec > 0
       ? Math.min(100, (holdElapsed / targetDurationSec) * 100)
@@ -508,24 +575,41 @@ export function WorkoutRunner() {
       : 0;
 
   // Completed exercises for summary
+  const isEarlyExit = isEarlyExitRef.current;
   const completedExercises: CompletedExercise[] = [];
-  for (let i = 0; i < exerciseIndex; i++) {
-    const ex = sessionExercises[i];
-    completedExercises.push({
-      name: ex.exerciseName,
-      sets: ex.sets,
-      repsPerSet: ex.movementPattern === 'core' ? ex.reps : ex.reps,
-      isDuration: ex.movementPattern === 'core',
-    });
-  }
-  // Current exercise also completed if we're in completed phase
-  if (phase === 'completed' && currentExercise) {
-    completedExercises.push({
-      name: currentExercise.exerciseName,
-      sets: currentExercise.sets,
-      repsPerSet: isDurationExercise ? targetDurationSec : currentExercise.reps,
-      isDuration: isDurationExercise,
-    });
+
+  if (isEarlyExit) {
+    // Partial: fully completed exercises before current
+    for (let i = 0; i < exerciseIndex; i++) {
+      const ex = sessionExercises[i];
+      completedExercises.push({
+        name: ex.exerciseName,
+        sets: ex.sets,
+        repsPerSet: ex.reps,
+        isDuration: ex.movementPattern === 'core',
+      });
+    }
+    // Partial: current exercise — during resting the last set just finished
+    if (currentExercise) {
+      const setsCompleted = phase === 'resting' ? setIndex + 1 : setIndex;
+      const lastSetReps = phase === 'resting' ? 0 : (isDurationExercise ? holdElapsed : localRepCount);
+      completedExercises.push({
+        name: currentExercise.exerciseName,
+        sets: Math.max(setsCompleted, 1),
+        repsPerSet: isDurationExercise ? lastSetReps : (setsCompleted > 0 ? currentExercise.reps : lastSetReps),
+        isDuration: isDurationExercise,
+      });
+    }
+  } else {
+    for (let i = 0; i <= exerciseIndex; i++) {
+      const ex = sessionExercises[i];
+      completedExercises.push({
+        name: ex.exerciseName,
+        sets: ex.sets,
+        repsPerSet: ex.reps,
+        isDuration: ex.movementPattern === 'core',
+      });
+    }
   }
 
   // Next label for rest overlay
@@ -555,7 +639,7 @@ export function WorkoutRunner() {
 
       {/* ── Top HUD (always visible except loading/completed) ─────────── */}
       {phase !== 'loading' && phase !== 'completed' && phase !== 'error' && (
-        <div className="absolute left-0 right-0 top-0 z-40 flex items-start justify-between p-4">
+        <div className="absolute left-0 right-0 top-0 z-40 flex items-start justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <div>
             <h2 className="font-display text-xl font-bold tracking-tight text-paper drop-shadow">
               {currentExercise?.exerciseName}
@@ -570,26 +654,38 @@ export function WorkoutRunner() {
             </div>
           </div>
 
-          {isActive && (
-            <div className="text-right">
-              <div className="font-timer text-3xl font-bold leading-none text-paper drop-shadow">
-                {isDurationExercise ? (
-                  <>
-                    {targetDurationSec - holdElapsed}
-                    <span className="ml-1 text-lg text-ash">s</span>
-                  </>
-                ) : (
-                  <>
-                    {localRepCount}
-                    <span className="ml-1 text-lg text-ash">/{targetReps}</span>
-                  </>
-                )}
+          <div className="flex items-start gap-2">
+            {isActive && (
+              <div className="text-right">
+                <div className="font-timer text-3xl font-bold leading-none text-paper drop-shadow">
+                  {isDurationExercise ? (
+                    <>
+                      {targetDurationSec - holdElapsed}
+                      <span className="ml-1 text-lg text-ash">s</span>
+                    </>
+                  ) : (
+                    <>
+                      {localRepCount}
+                      <span className="ml-1 text-lg text-ash">/{targetReps}</span>
+                    </>
+                  )}
+                </div>
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-ash">
+                  {isDurationExercise ? 'time' : 'reps'}
+                </div>
               </div>
-              <div className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-ash">
-                {isDurationExercise ? 'time' : 'reps'}
-              </div>
-            </div>
-          )}
+            )}
+
+            {/* Quit button */}
+            <button
+              type="button"
+              aria-label="End workout"
+              onClick={() => setShowQuitConfirm(true)}
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/30 text-paper backdrop-blur transition-all hover:bg-black/50 active:scale-90"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -652,26 +748,16 @@ export function WorkoutRunner() {
             </div>
           )}
 
-          {/* Pause / Stop */}
-          <div className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 gap-3">
+          {/* Skip Set button */}
+          <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2">
             <button
               type="button"
-              aria-label={isPaused ? 'Resume' : 'Pause'}
-              onClick={togglePause}
-              className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-ink/70 text-paper backdrop-blur transition-transform active:scale-90"
+              aria-label="Skip set"
+              onClick={handleSkipSet}
+              className="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-5 py-3 text-sm font-bold text-paper backdrop-blur transition-all hover:bg-black/50 active:scale-95"
             >
-              {isPaused ? <Play size={20} /> : <Pause size={20} />}
-            </button>
-            <button
-              type="button"
-              aria-label="End workout"
-              onClick={() => {
-                teardownVision();
-                setPhase('completed');
-              }}
-              className="flex h-12 w-12 items-center justify-center rounded-full border border-crimson/40 bg-crimson/20 text-crimson backdrop-blur transition-transform active:scale-90"
-            >
-              <Flag size={20} />
+              Skip Set
+              <ChevronRight size={16} />
             </button>
           </div>
         </>
@@ -727,6 +813,41 @@ export function WorkoutRunner() {
             <RefreshCw size={16} />
             Retry
           </button>
+        </div>
+      )}
+
+      {/* ── Quit confirmation dialog ──────────────────────────────────── */}
+      {showQuitConfirm && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-8 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="End workout"
+        >
+          <div className="w-full max-w-xs rounded-2xl border border-white/10 bg-surface/90 p-6 text-center backdrop-blur-md">
+            <h3 className="font-display text-lg font-bold text-paper">
+              End workout?
+            </h3>
+            <p className="mt-2 text-sm text-ash">
+              You'll keep all the reps and time you've completed so far.
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleQuit}
+                className="w-full rounded-xl border border-crimson/40 bg-crimson/15 py-3 text-sm font-bold text-crimson transition-colors hover:bg-crimson/25 active:scale-[0.98]"
+              >
+                Quit Workout
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQuitConfirm(false)}
+                className="w-full rounded-xl bg-white/5 py-3 text-sm font-bold text-paper transition-colors hover:bg-white/10 active:scale-[0.98]"
+              >
+                Keep Going
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
