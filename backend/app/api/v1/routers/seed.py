@@ -108,7 +108,7 @@ class SeedResult(BaseModel):
 
 @router.post("/seed-exercises", response_model=SeedResult)
 async def seed_exercises(
-    limit: int = 100,
+    limit: int = 2000,
     _admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> SeedResult:
