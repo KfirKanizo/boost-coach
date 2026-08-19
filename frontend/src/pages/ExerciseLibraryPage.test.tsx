@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { Exercise } from '../types/boost';
@@ -10,17 +10,12 @@ vi.mock('../api/client', () => ({
   api: { getExercises: vi.fn() },
 }));
 
-function ExerciseMarker() {
-  const { exercise_id } = useParams<{ exercise_id: string }>();
-  return <div>Exercise {exercise_id}</div>;
-}
-
 function renderLibrary() {
   return render(
     <MemoryRouter initialEntries={['/library']}>
       <Routes>
         <Route path="/library" element={<ExerciseLibraryPage />} />
-        <Route path="/exercise/:exercise_id" element={<ExerciseMarker />} />
+        <Route path="/workout" element={<div>Workout</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -141,7 +136,7 @@ describe('ExerciseLibraryPage', () => {
     expect(screen.getByText('No exercises found')).toBeInTheDocument();
   });
 
-  it('navigates to exercise studio on click', async () => {
+  it('opens QuickStartSheet when a card is clicked', async () => {
     const user = userEvent.setup();
     renderLibrary();
     await screen.findByText('Squat');
@@ -150,7 +145,11 @@ describe('ExerciseLibraryPage', () => {
     const squatCard = within(grid).getByText('Squat').closest('button')!;
     await user.click(squatCard);
 
-    expect(await screen.findByText('Exercise e-1')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('dialog', { name: /quick start: squat/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument(); // default sets
+    expect(screen.getByText('10')).toBeInTheDocument(); // default reps
   });
 
   it('resets to All equipment when All is clicked', async () => {

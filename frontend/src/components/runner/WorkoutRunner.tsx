@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { api } from '../../api/client';
 import { SkeletonOverlay } from '../studio/SkeletonOverlay';
 import type {
   LandmarkPoint,
@@ -462,6 +463,35 @@ export function WorkoutRunner() {
   const handleReturn = useCallback(() => {
     navigate('/');
   }, [navigate]);
+
+  // ── Send completion payload to backend ─────────────────────────────
+  const completionSentRef = useRef(false);
+  useEffect(() => {
+    if (phase !== 'completed') return;
+    if (completionSentRef.current) return;
+    completionSentRef.current = true;
+
+    const isSingle = sessionExercises.length === 1;
+    let totalReps = 0;
+    let totalDurationSec = 0;
+
+    for (const ex of sessionExercises) {
+      if (ex.movementPattern === 'core') {
+        totalDurationSec += ex.reps * ex.sets;
+      } else {
+        totalReps += ex.reps * ex.sets;
+      }
+    }
+
+    void api.completeWorkout({
+      session_type: isSingle ? 'single' : 'flow',
+      total_reps: totalReps,
+      total_duration_seconds: totalDurationSec,
+      exercise_count: sessionExercises.length,
+    }).catch(() => {
+      // Silent — completion is best-effort; the user sees the screen either way.
+    });
+  }, [phase, sessionExercises]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Early exit guard ───────────────────────────────────────────────
   if (!sessionExercises || sessionExercises.length === 0) return null;

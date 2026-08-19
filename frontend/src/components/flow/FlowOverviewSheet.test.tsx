@@ -13,6 +13,7 @@ function makeRoutine(overrides: Partial<CustomRoutine> = {}): CustomRoutine {
       { exerciseId: 'e-1', exerciseName: 'Plank', movementPattern: 'core', sets: 3, reps: 1, restSeconds: 30 },
       { exerciseId: 'e-2', exerciseName: 'Crunches', movementPattern: 'core', sets: 3, reps: 15, restSeconds: 30 },
     ],
+    scheduleDays: null,
     createdAt: '2026-08-15T10:00:00Z',
     ...overrides,
   };

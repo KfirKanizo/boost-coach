@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Dumbbell, Search } from 'lucide-react';
+import { Dumbbell, Play, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { api } from '../api/client';
 import type { Exercise } from '../types/boost';
+import type { RoutineExercise } from '../components/builder/RoutineEditor';
 
 type EquipmentFilter = 'all' | 'bodyweight' | 'weights';
 
@@ -16,14 +17,177 @@ const MUSCLE_CHIPS = [
   { label: 'Core', value: 'core' },
 ] as const;
 
+const DEFAULT_SETS = 3;
+const DEFAULT_REPS = 10;
+const DEFAULT_REST = 60;
+
 function matchesEquipment(ex: Exercise, filter: EquipmentFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'bodyweight') return ex.equipment_required === 'bodyweight';
   return ex.equipment_required !== 'bodyweight';
 }
 
-export function ExerciseLibraryPage() {
+// ---------------------------------------------------------------------------
+// Quick Start Bottom Sheet
+// ---------------------------------------------------------------------------
+
+interface QuickStartSheetProps {
+  exercise: Exercise;
+  onClose: () => void;
+}
+
+function QuickStartSheet({ exercise, onClose }: QuickStartSheetProps) {
   const navigate = useNavigate();
+  const [sets, setSets] = useState(DEFAULT_SETS);
+  const [reps, setReps] = useState(DEFAULT_REPS);
+  const [rest, setRest] = useState(DEFAULT_REST);
+
+  const name = exercise.name_translations.en ?? exercise.id;
+  const isDuration = exercise.boost_type === 'DURATION';
+
+  const handleStart = useCallback(() => {
+    const sessionExercise: RoutineExercise = {
+      exerciseId: exercise.id,
+      exerciseName: name,
+      movementPattern: exercise.movement_pattern,
+      sets,
+      reps,
+      restSeconds: rest,
+    };
+    navigate('/workout', { state: { sessionExercises: [sessionExercise] } });
+  }, [exercise, name, sets, reps, rest, navigate]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Quick start: ${name}`}
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-t-card bg-surface"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <header className="flex items-center justify-between px-6 pt-6 pb-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-display text-lg font-bold text-paper">{name}</h2>
+            <p className="mt-0.5 text-xs text-ash">
+              {isDuration ? 'Duration exercise' : 'Rep-counted exercise'} &middot;{' '}
+              {exercise.movement_pattern}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:text-paper"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        {/* Config */}
+        <div className="px-6 pt-4 pb-2">
+          <div className="flex flex-wrap items-center justify-center gap-5">
+            {/* Sets */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ash">Sets</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={sets <= 1}
+                  onClick={() => setSets((s) => Math.max(1, s - 1))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:bg-white/10 hover:text-paper disabled:opacity-30"
+                >
+                  &minus;
+                </button>
+                <span className="min-w-[2ch] text-center text-lg font-bold text-paper">{sets}</span>
+                <button
+                  type="button"
+                  disabled={sets >= 10}
+                  onClick={() => setSets((s) => Math.min(10, s + 1))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:bg-white/10 hover:text-paper disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Reps / Duration */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ash">
+                {isDuration ? 'Secs' : 'Reps'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={reps <= 1}
+                  onClick={() => setReps((r) => Math.max(1, r - 1))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:bg-white/10 hover:text-paper disabled:opacity-30"
+                >
+                  &minus;
+                </button>
+                <span className="min-w-[2ch] text-center text-lg font-bold text-paper">{reps}</span>
+                <button
+                  type="button"
+                  disabled={reps >= 60}
+                  onClick={() => setReps((r) => Math.min(60, r + 1))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:bg-white/10 hover:text-paper disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Rest */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-ash">Rest</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={rest <= 0}
+                  onClick={() => setRest((r) => Math.max(0, r - 15))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:bg-white/10 hover:text-paper disabled:opacity-30"
+                >
+                  &minus;
+                </button>
+                <span className="min-w-[3ch] text-center text-lg font-bold text-paper">{rest}s</span>
+                <button
+                  type="button"
+                  disabled={rest >= 300}
+                  onClick={() => setRest((r) => Math.min(300, r + 15))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-ash transition-colors hover:bg-white/10 hover:text-paper disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div className="px-6 pt-4 pb-8">
+          <button
+            type="button"
+            onClick={handleStart}
+            className="flex w-full items-center justify-center gap-2.5 rounded-full bg-neon py-4 text-base font-black uppercase tracking-widest text-ink shadow-neon-glow transition-all hover:shadow-neon-glow-strong active:scale-[0.97]"
+          >
+            <Play size={20} fill="currentColor" />
+            Start Exercise
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Page
+// ---------------------------------------------------------------------------
+
+export function ExerciseLibraryPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +195,9 @@ export function ExerciseLibraryPage() {
   const [equipmentFilter, setEquipmentFilter] = useState<EquipmentFilter>('all');
   const [muscleFilter, setMuscleFilter] = useState('');
   const [search, setSearch] = useState('');
+
+  // Quick start sheet state
+  const [quickStartExercise, setQuickStartExercise] = useState<Exercise | null>(null);
 
   const loadExercises = useCallback(async () => {
     setLoading(true);
@@ -177,11 +344,7 @@ export function ExerciseLibraryPage() {
                 <button
                   key={ex.id}
                   type="button"
-                  onClick={() =>
-                    navigate(`/exercise/${ex.id}`, {
-                      state: { exercise: ex },
-                    })
-                  }
+                  onClick={() => setQuickStartExercise(ex)}
                   className="group relative flex flex-col items-start gap-2 rounded-card bg-surface p-4 text-left transition-all hover:bg-white/[0.07] active:scale-[0.97]"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-neon transition-colors group-hover:bg-neon/10">
@@ -212,6 +375,14 @@ export function ExerciseLibraryPage() {
           </div>
         )}
       </div>
+
+      {/* Quick Start sheet */}
+      {quickStartExercise && (
+        <QuickStartSheet
+          exercise={quickStartExercise}
+          onClose={() => setQuickStartExercise(null)}
+        />
+      )}
     </div>
   );
 }

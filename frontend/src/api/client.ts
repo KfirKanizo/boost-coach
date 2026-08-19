@@ -11,6 +11,55 @@ import type { SwapReason } from '../types/swap';
 import { enqueueBoost } from '../services/offlineQueue';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../services/tokenStorage';
 
+export interface RoutineItem {
+  id: string;
+  name: string;
+  exercises: {
+    exercise_id: string;
+    exercise_name: string;
+    movement_pattern: string;
+    sets: number;
+    reps: number;
+    rest_seconds: number;
+  }[];
+  schedule_days: number[] | null;
+  created_at: string;
+}
+
+export interface RoutineCreatePayload {
+  name: string;
+  exercises: {
+    exercise_id: string;
+    exercise_name: string;
+    movement_pattern: string;
+    sets: number;
+    reps: number;
+    rest_seconds: number;
+  }[];
+  schedule_days?: number[];
+}
+
+export interface WorkoutCompletePayload {
+  session_type: 'single' | 'flow';
+  total_reps: number;
+  total_duration_seconds: number;
+  exercise_count: number;
+}
+
+export interface WorkoutSessionItem {
+  id: string;
+  session_type: string;
+  total_reps: number;
+  total_duration_seconds: number;
+  exercise_count: number;
+  created_at: string;
+}
+
+export interface WeeklyStats {
+  sessions_this_week: number;
+  weekly_goal: number;
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
@@ -252,5 +301,49 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ message }),
     });
+  },
+
+  /** GET /routines — list the user's custom routines. */
+  getRoutines(): Promise<RoutineItem[]> {
+    return request<RoutineItem[]>('/routines');
+  },
+
+  /** POST /routines — create a new custom routine. */
+  createRoutine(data: RoutineCreatePayload): Promise<RoutineItem> {
+    return request<RoutineItem>('/routines', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** PUT /routines/:id — update an existing routine. */
+  updateRoutine(
+    routineId: string,
+    data: Partial<RoutineCreatePayload>,
+  ): Promise<RoutineItem> {
+    return request<RoutineItem>(`/routines/${routineId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** DELETE /routines/:id — delete a routine. */
+  async deleteRoutine(routineId: string): Promise<void> {
+    await request(`/routines/${routineId}`, { method: 'DELETE' });
+  },
+
+  /** POST /history/complete — log a completed workout session. */
+  completeWorkout(
+    data: WorkoutCompletePayload,
+  ): Promise<WorkoutSessionItem> {
+    return request<WorkoutSessionItem>('/history/complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** GET /history/weekly-stats — sessions this week + weekly goal. */
+  getWeeklyStats(): Promise<WeeklyStats> {
+    return request<WeeklyStats>('/history/weekly-stats');
   },
 };

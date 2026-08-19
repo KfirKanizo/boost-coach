@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dumbbell, Plus, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Preferences } from '@capacitor/preferences';
 
 import { api } from '../api/client';
 import type { Exercise } from '../types/boost';
@@ -12,33 +11,37 @@ import { RoutineRow } from '../components/builder/RoutineEditor';
 // Types
 // ---------------------------------------------------------------------------
 
-/** Persisted custom routine stored in Capacitor Preferences. */
+/** Custom routine as returned by the backend API. */
 export interface CustomRoutine {
   id: string;
   name: string;
   exercises: RoutineExercise[];
+  scheduleDays: number[] | null;
   createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
-// Persistence helpers
+// Mapper: API RoutineItem → frontend CustomRoutine
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'custom_routines';
-
-export async function loadRoutines(): Promise<CustomRoutine[]> {
-  const { value } = await Preferences.get({ key: STORAGE_KEY });
-  if (!value) return [];
-  try {
-    return JSON.parse(value) as CustomRoutine[];
-  } catch {
-    return [];
-  }
+function toFrontendRoutine(item: import('../api/client').RoutineItem): CustomRoutine {
+  return {
+    id: item.id,
+    name: item.name,
+    exercises: item.exercises.map((ex) => ({
+      exerciseId: ex.exercise_id,
+      exerciseName: ex.exercise_name,
+      movementPattern: ex.movement_pattern,
+      sets: ex.sets,
+      reps: ex.reps,
+      restSeconds: ex.rest_seconds,
+    })),
+    scheduleDays: item.schedule_days,
+    createdAt: item.created_at,
+  };
 }
 
-export async function saveRoutines(routines: CustomRoutine[]): Promise<void> {
-  await Preferences.set({ key: STORAGE_KEY, value: JSON.stringify(routines) });
-}
+export { toFrontendRoutine };
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -47,6 +50,8 @@ export async function saveRoutines(routines: CustomRoutine[]): Promise<void> {
 const DEFAULT_SETS = 3;
 const DEFAULT_REPS = 10;
 const DEFAULT_REST = 60;
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 // ---------------------------------------------------------------------------
 // Exercise Picker Bottom Sheet
@@ -69,7 +74,6 @@ function ExercisePickerSheet({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Auto-focus the search input when the sheet opens.
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
 
@@ -108,7 +112,6 @@ function ExercisePickerSheet({
           </button>
         </header>
 
-        {/* Search */}
         <div className="relative mb-4">
           <Search
             size={16}
@@ -124,7 +127,6 @@ function ExercisePickerSheet({
           />
         </div>
 
-        {/* List */}
         <div className="max-h-[50vh] overflow-y-auto">
           {filtered.length === 0 && (
             <p className="py-8 text-center text-sm text-ash">
@@ -172,22 +174,15 @@ function ExercisePickerSheet({
 export function WorkoutBuilderPage() {
   const navigate = useNavigate();
 
-  // Routine metadata
   const [routineName, setRoutineName] = useState('My Custom Flow');
+  const [routineExercises, setRoutineExercises] = useState<RoutineExercise[]>([]);
+  const [scheduleDays, setScheduleDays] = useState<number[]>([]);
 
-  // Routine exercises
-  const [routineExercises, setRoutineExercises] = useState<RoutineExercise[]>(
-    [],
-  );
-
-  // Exercise catalogue
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [exercisesLoading, setExercisesLoading] = useState(true);
-
-  // Exercise picker sheet
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Toast
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -196,7 +191,6 @@ export function WorkoutBuilderPage() {
     [routineExercises],
   );
 
-  // Load exercises on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -204,17 +198,13 @@ export function WorkoutBuilderPage() {
         const data = await api.getExercises();
         if (!cancelled) setAllExercises(data);
       } catch {
-        // Silent — picker degrades gracefully.
+        // Silent
       } finally {
         if (!cancelled) setExercisesLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
-
-  // --- Handlers ---
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -222,29 +212,23 @@ export function WorkoutBuilderPage() {
     toastTimer.current = setTimeout(() => setToast(null), 2500);
   }, []);
 
-  const addExercise = useCallback(
-    (exercise: Exercise) => {
-      setRoutineExercises((prev) => [
-        ...prev,
-        {
-          exerciseId: exercise.id,
-          exerciseName: exercise.name_translations.en ?? exercise.id,
-          movementPattern: exercise.movement_pattern,
-          sets: DEFAULT_SETS,
-          reps: DEFAULT_REPS,
-          restSeconds: DEFAULT_REST,
-        },
-      ]);
-      setPickerOpen(false);
-    },
-    [],
-  );
+  const addExercise = useCallback((exercise: Exercise) => {
+    setRoutineExercises((prev) => [
+      ...prev,
+      {
+        exerciseId: exercise.id,
+        exerciseName: exercise.name_translations.en ?? exercise.id,
+        movementPattern: exercise.movement_pattern,
+        sets: DEFAULT_SETS,
+        reps: DEFAULT_REPS,
+        restSeconds: DEFAULT_REST,
+      },
+    ]);
+    setPickerOpen(false);
+  }, []);
 
   const updateExercise = useCallback(
-    (
-      index: number,
-      patch: Partial<Omit<RoutineExercise, 'exerciseId' | 'exerciseName' | 'movementPattern'>>,
-    ) => {
+    (index: number, patch: Partial<Omit<RoutineExercise, 'exerciseId' | 'exerciseName' | 'movementPattern'>>) => {
       setRoutineExercises((prev) =>
         prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
       );
@@ -267,33 +251,40 @@ export function WorkoutBuilderPage() {
     setRoutineExercises((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const toggleDay = useCallback((day: number) => {
+    setScheduleDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort(),
+    );
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (routineExercises.length === 0) {
       showToast('Add at least one exercise');
       return;
     }
 
-    const existing = await loadRoutines();
-    if (existing.length >= 4) {
-      showToast('Maximum of 4 custom flows reached');
-      return;
-    }
-
-    const routine: CustomRoutine = {
-      id: `routine_${Date.now()}`,
-      name: routineName.trim() || 'My Custom Flow',
-      exercises: routineExercises,
-      createdAt: new Date().toISOString(),
-    };
-
+    setSaving(true);
     try {
-      await saveRoutines([...existing, routine]);
+      await api.createRoutine({
+        name: routineName.trim() || 'My Custom Flow',
+        exercises: routineExercises.map((ex) => ({
+          exercise_id: ex.exerciseId,
+          exercise_name: ex.exerciseName,
+          movement_pattern: ex.movementPattern,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest_seconds: ex.restSeconds,
+        })),
+        schedule_days: scheduleDays.length > 0 ? scheduleDays : undefined,
+      });
       showToast('Routine saved!');
       setTimeout(() => navigate('/'), 800);
     } catch {
       showToast('Failed to save — try again');
+    } finally {
+      setSaving(false);
     }
-  }, [routineName, routineExercises, navigate, showToast]);
+  }, [routineName, routineExercises, scheduleDays, navigate, showToast]);
 
   return (
     <div className="flex min-h-screen flex-col bg-ink pb-28">
@@ -331,6 +322,37 @@ export function WorkoutBuilderPage() {
           placeholder="My Custom Flow"
           className="w-full rounded-card border border-white/10 bg-surface px-4 py-3 text-sm font-semibold text-paper placeholder-ash/40 outline-none transition-colors focus:border-neon/40"
         />
+      </div>
+
+      {/* Schedule Section */}
+      <div className="mt-5 px-4">
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-ash">
+          Schedule
+        </h2>
+        <div className="flex gap-2">
+          {DAY_LABELS.map((label, dayIndex) => {
+            const isActive = scheduleDays.includes(dayIndex);
+            return (
+              <button
+                key={dayIndex}
+                type="button"
+                onClick={() => toggleDay(dayIndex)}
+                className={`flex h-10 flex-1 items-center justify-center rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+                  isActive
+                    ? 'bg-neon text-ink shadow-neon-glow'
+                    : 'bg-surface text-ash hover:bg-white/[0.07]'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {scheduleDays.length > 0 && (
+          <p className="mt-2 text-xs text-ash">
+            Scheduled on {scheduleDays.map((d) => DAY_LABELS[d]).join(', ')}
+          </p>
+        )}
       </div>
 
       {/* Routine exercises list */}
@@ -375,7 +397,6 @@ export function WorkoutBuilderPage() {
           ))}
         </div>
 
-        {/* Add Exercise button */}
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
@@ -392,15 +413,14 @@ export function WorkoutBuilderPage() {
           <button
             type="button"
             onClick={() => void handleSave()}
-            disabled={exercisesLoading}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-neon py-4 text-base font-black uppercase tracking-widest text-ink shadow-neon-glow transition-all hover:shadow-neon-glow-strong active:scale-[0.97]"
+            disabled={exercisesLoading || saving}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-neon py-4 text-base font-black uppercase tracking-widest text-ink shadow-neon-glow transition-all hover:shadow-neon-glow-strong active:scale-[0.97] disabled:opacity-40 disabled:shadow-none"
           >
-            Save Routine
+            {saving ? 'Saving…' : 'Save Routine'}
           </button>
         </div>
       </div>
 
-      {/* Exercise picker sheet */}
       {pickerOpen && (
         <ExercisePickerSheet
           exercises={allExercises}
@@ -410,7 +430,6 @@ export function WorkoutBuilderPage() {
         />
       )}
 
-      {/* Toast */}
       {toast && (
         <div
           role="status"

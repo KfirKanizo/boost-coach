@@ -49,6 +49,12 @@ class User(Base):
     boosts: Mapped[list["DailyBoost"]] = relationship(
         back_populates="user", lazy="selectin"
     )
+    routines: Mapped[list["Routine"]] = relationship(
+        back_populates="user", lazy="selectin"
+    )
+    workout_sessions: Mapped[list["WorkoutSession"]] = relationship(
+        back_populates="user", lazy="selectin"
+    )
 
 
 class TrainingProgram(Base):
@@ -136,3 +142,50 @@ class SwapLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )
+
+
+class Routine(Base):
+    """User-created custom workout routine with optional weekly schedule."""
+
+    __tablename__ = "routines"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    exercises: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    schedule_days: Mapped[list[int] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+
+    user: Mapped[User] = relationship(back_populates="routines")
+
+
+class WorkoutSession(Base):
+    """Logged workout completion — one row per finished session."""
+
+    __tablename__ = "workout_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
+    session_type: Mapped[str] = mapped_column(String, nullable=False)
+    total_reps: Mapped[int] = mapped_column(Integer, default=0)
+    total_duration_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    exercise_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+
+    user: Mapped[User] = relationship(back_populates="workout_sessions")

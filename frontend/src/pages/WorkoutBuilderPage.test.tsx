@@ -1,6 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Preferences } from '@capacitor/preferences';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -12,13 +11,9 @@ import { WorkoutBuilderPage } from './WorkoutBuilderPage';
 // ---------------------------------------------------------------------------
 
 vi.mock('../api/client', () => ({
-  api: { getExercises: vi.fn() },
-}));
-
-vi.mock('@capacitor/preferences', () => ({
-  Preferences: {
-    get: vi.fn().mockResolvedValue({ value: null }),
-    set: vi.fn().mockResolvedValue(undefined),
+  api: {
+    getExercises: vi.fn(),
+    createRoutine: vi.fn().mockResolvedValue({ id: 'new-1', name: 'My Custom Flow', exercises: [], schedule_days: null, created_at: '' }),
   },
 }));
 
@@ -60,10 +55,10 @@ describe('WorkoutBuilderPage', () => {
   beforeEach(() => {
     vi.mocked(api.getExercises).mockReset();
     vi.mocked(api.getExercises).mockResolvedValue(SAMPLE);
-    vi.mocked(Preferences.get).mockReset();
-    vi.mocked(Preferences.get).mockResolvedValue({ value: null });
-    vi.mocked(Preferences.set).mockReset();
-    vi.mocked(Preferences.set).mockResolvedValue(undefined);
+    vi.mocked(api.createRoutine).mockReset();
+    vi.mocked(api.createRoutine).mockResolvedValue({
+      id: 'new-1', name: 'My Custom Flow', exercises: [], schedule_days: null, created_at: '',
+    });
   });
 
   it('renders the routine name input with default value', async () => {
@@ -246,7 +241,7 @@ describe('WorkoutBuilderPage', () => {
     expect(within(squatItem).getByText('Added')).toBeInTheDocument();
   });
 
-  it('saves the routine to Preferences and navigates back', async () => {
+  it('saves the routine via API and navigates back', async () => {
     const user = userEvent.setup();
     renderBuilder();
 
@@ -257,10 +252,12 @@ describe('WorkoutBuilderPage', () => {
     // Save
     await user.click(screen.getByRole('button', { name: /save routine/i }));
 
-    // Should call Preferences.set
-    expect(Preferences.set).toHaveBeenCalled();
-    const setCall = vi.mocked(Preferences.set).mock.calls[0][0];
-    expect(setCall.key).toBe('custom_routines');
+    // Should call api.createRoutine
+    expect(api.createRoutine).toHaveBeenCalledOnce();
+    const callArg = vi.mocked(api.createRoutine).mock.calls[0][0];
+    expect(callArg.name).toBe('My Custom Flow');
+    expect(callArg.exercises).toHaveLength(1);
+    expect(callArg.exercises[0].exercise_id).toBe('e-1');
 
     // Should show toast
     expect(await screen.findByText('Routine saved!')).toBeInTheDocument();
@@ -270,7 +267,7 @@ describe('WorkoutBuilderPage', () => {
   });
 
   it('shows error toast when save fails', async () => {
-    vi.mocked(Preferences.set).mockRejectedValueOnce(new Error('Storage full'));
+    vi.mocked(api.createRoutine).mockRejectedValueOnce(new Error('Server error'));
     const user = userEvent.setup();
     renderBuilder();
 
@@ -291,15 +288,10 @@ describe('WorkoutBuilderPage', () => {
     expect(await screen.findByText('Add at least one exercise')).toBeInTheDocument();
   });
 
-  it('shows error toast when 4 routines already exist', async () => {
-    const existingRoutines = Array.from({ length: 4 }, (_, i) => ({
-      id: `r-${i}`,
-      name: `Routine ${i}`,
-      exercises: [],
-      createdAt: '',
-    }));
-    vi.mocked(Preferences.get).mockResolvedValue({
-      value: JSON.stringify(existingRoutines),
+  it('shows error toast when API rejects the save (e.g. limit reached)', async () => {
+    vi.mocked(api.createRoutine).mockRejectedValueOnce({
+      status: 409,
+      message: 'Maximum of 4 routines reached',
     });
     const user = userEvent.setup();
     renderBuilder();
@@ -309,7 +301,7 @@ describe('WorkoutBuilderPage', () => {
 
     await user.click(screen.getByRole('button', { name: /save routine/i }));
 
-    expect(await screen.findByText('Maximum of 4 custom flows reached')).toBeInTheDocument();
+    expect(await screen.findByText('Failed to save — try again')).toBeInTheDocument();
     // Should NOT have navigated away
     expect(screen.getByText('Custom Builder')).toBeInTheDocument();
   });

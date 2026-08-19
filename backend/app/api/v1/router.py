@@ -12,6 +12,8 @@ from app.api.v1.routers import (
     coach,
     engine,
     exercises,
+    history,
+    routines,
     users,
 )
 
@@ -23,3 +25,5 @@ api_router.include_router(exercises.router)
 api_router.include_router(engine.router)
 api_router.include_router(coach.router)
 api_router.include_router(admin.router)
+api_router.include_router(routines.router)
+api_router.include_router(history.router)
