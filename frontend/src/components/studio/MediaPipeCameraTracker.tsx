@@ -81,6 +81,7 @@ export function MediaPipeCameraTracker({
   const processingRef = useRef(false);
   const captureInFlightRef = useRef(false);
   const completedRef = useRef(false);
+  const mountedRef = useRef(true);
   /**
    * Anonymous FPS samples reported by the worker during this session. Only
    * the average is ever reported to Sentry — no frames, landmarks, or PII.
@@ -121,8 +122,10 @@ export function MediaPipeCameraTracker({
   const startCamera = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !navigator.mediaDevices?.getUserMedia) {
-      setErrorMessage('Camera API is not available in this browser.');
-      setStatus('error');
+      if (mountedRef.current) {
+        setErrorMessage('Camera API is not available in this browser.');
+        setStatus('error');
+      }
       return;
     }
 
@@ -131,11 +134,22 @@ export function MediaPipeCameraTracker({
         video: { facingMode: CAMERA_FACING_MODE },
         audio: false,
       });
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
       video.muted = true;
       video.srcObject = stream;
-      await video.play();
 
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        await playPromise.catch((error: unknown) => {
+          console.warn('Video play interrupted, likely by React re-render:', error);
+        });
+      }
+
+      if (!mountedRef.current) return;
       cameraReadyRef.current = true;
       setStatus((current) =>
         current === 'error' || current === 'done'
@@ -146,6 +160,7 @@ export function MediaPipeCameraTracker({
       );
       captureFrame();
     } catch (error) {
+      if (!mountedRef.current) return;
       setErrorMessage(
         error instanceof DOMException && error.name === 'NotAllowedError'
           ? 'Camera access denied. Enable the camera permission and retry.'
@@ -206,9 +221,11 @@ export function MediaPipeCameraTracker({
   }, [captureFrame, stopCamera]);
 
   useEffect(() => {
+    mountedRef.current = true;
     void startCamera();
     createWorker();
     return () => {
+      mountedRef.current = false;
       workerRef.current?.terminate();
       workerRef.current = null;
       stopCamera();

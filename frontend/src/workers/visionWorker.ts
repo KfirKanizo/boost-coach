@@ -37,9 +37,15 @@ interface WorkerLikeScope {
 
 const ctx = self as unknown as WorkerLikeScope;
 
+/**
+ * Absolute origin so local paths resolve even when this worker is
+ * instantiated as a blob: URL by Vite (relative paths would fail).
+ */
+const origin = self.location.origin;
+
 /** Served from `public/mediapipe/tasks-vision/` (see scripts/setup-mediapipe.mjs). */
-const WASM_BASE_PATH = '/mediapipe/tasks-vision/wasm';
-const MODEL_ASSET_PATH = '/mediapipe/tasks-vision/pose_landmarker_lite.task';
+const WASM_BASE_PATH = `${origin}/mediapipe/tasks-vision/wasm`;
+const MODEL_ASSET_PATH = `${origin}/mediapipe/tasks-vision/pose_landmarker_lite.task`;
 
 const post = (message: VisionWorkerResponse): void => {
   ctx.postMessage(message);
@@ -101,6 +107,41 @@ function toPoints(landmarks: NormalizedLandmark[]): LandmarkPoint[] {
 }
 
 async function initPoseLandmarker(): Promise<void> {
+  // Emscripten-compiled WASM glue references debug helpers that are absent
+  // in an ES Module worker environment. Stub them out before the WASM module
+  // is loaded to prevent "custom_dbg is not defined" runtime crashes.
+  const s = self as unknown as Record<string, unknown>;
+  if (typeof s.custom_dbg === 'undefined') {
+    s.custom_dbg = function () {};
+  }
+  if (typeof s.custom_trace === 'undefined') {
+    s.custom_trace = function () {};
+  }
+
+  // In an ES Module Worker, `var ModuleFactory` inside vision_wasm_internal.js
+  // is scoped to the module and never leaks onto `self`.  We fetch the script
+  // text, append an ES export, wrap it in a Blob URL, and import() it so we
+  // can grab the factory and place it on the global scope where MediaPipe
+  // expects to find it.
+  const w = self as unknown as Record<string, unknown>;
+  if (!w.ModuleFactory) {
+    try {
+      const wasmJsUrl = `${origin}/mediapipe/tasks-vision/wasm/vision_wasm_internal.js`;
+      const response = await fetch(wasmJsUrl);
+      const scriptText = await response.text();
+
+      const blob = new Blob([scriptText + '\nexport default ModuleFactory;'], {
+        type: 'application/javascript',
+      });
+      const blobUrl = URL.createObjectURL(blob);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const wasmModule: any = await import(/* @vite-ignore */ blobUrl);
+      w.ModuleFactory = wasmModule.default;
+    } catch (e) {
+      console.error('Failed to bridge MediaPipe WASM:', e);
+    }
+  }
+
   const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
   poseLandmarker = await PoseLandmarker.createFromOptions(fileset, {
     baseOptions: {
