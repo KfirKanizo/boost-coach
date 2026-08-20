@@ -3,15 +3,12 @@
 POST /api/v1/admin/seed-exercises — fetches exercises from ExerciseDB
 via RapidAPI and upserts them into the local catalogue.
 
-Auto-tags ``movement_pattern`` based on exercise name:
-  - name contains 'squat'          → squat
-  - name contains 'push up'/'pushup' → push
-  - name contains 'plank'          → core
-  - else                           → none
+Targets only the curated list of ~50 core exercises.  Name matching uses
+aggressive normalisation (strip non-alphanumeric, lowercase) so
+"Barbell Bent-Over Row" matches "Barbell Bent Over Row".
 
-Auto-determines ``boost_type``:
-  - core/plank exercises           → DURATION
-  - everything else                → VISION_REP
+Auto-tags ``movement_pattern`` based on exercise name.
+Auto-determines ``boost_type`` (core/plank → DURATION, else → VISION_REP).
 
 Requires admin privileges.
 """
@@ -39,6 +36,74 @@ RAPIDAPI_KEY = os.getenv(
     "RAPIDAPI_KEY",
     "112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34",
 )
+
+# ---------------------------------------------------------------------------
+# Curated target list (Title Case)
+# ---------------------------------------------------------------------------
+
+TARGET_EXERCISE_NAMES: list[str] = [
+    "Barbell Bench Press",
+    "Dumbbell Bench Press",
+    "Incline Barbell Bench Press",
+    "Incline Dumbbell Bench Press",
+    "Push Up",
+    "Kneeling Push Up",
+    "Dumbbell Fly",
+    "Cable Crossover",
+    "Barbell Deadlift",
+    "Romanian Deadlift",
+    "Pull Up",
+    "Chin Up",
+    "Lat Pulldown",
+    "Barbell Bent Over Row",
+    "Dumbbell Row",
+    "Seated Cable Row",
+    "T-Bar Row",
+    "Barbell Back Squat",
+    "Barbell Front Squat",
+    "Leg Press",
+    "Dumbbell Lunge",
+    "Bulgarian Split Squat",
+    "Leg Extension",
+    "Lying Leg Curl",
+    "Seated Calf Raise",
+    "Standing Calf Raise",
+    "Barbell Overhead Press",
+    "Dumbbell Overhead Press",
+    "Lateral Raise",
+    "Front Raise",
+    "Reverse Pec Deck Fly",
+    "Arnold Press",
+    "Barbell Curl",
+    "Dumbbell Curl",
+    "Hammer Curl",
+    "Preacher Curl",
+    "Cable Curl",
+    "Cable Triceps Pushdown",
+    "Dumbbell Lying Triceps Extension",
+    "Triceps Dip",
+    "Overhead Triceps Extension",
+    "Bench Dip",
+    "Plank",
+    "Crunch",
+    "Hanging Leg Raise",
+    "Russian Twist",
+    "Ab Wheel Rollout",
+    "Kettlebell Swing",
+    "Burpee",
+    "Mountain Climber",
+]
+
+
+def _normalize(name: str) -> str:
+    """Strip all non-alphanumeric characters and lowercase."""
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+# Pre-compute normalized → original lookup
+_TARGET_NORMALIZED: dict[str, str] = {
+    _normalize(name): name for name in TARGET_EXERCISE_NAMES
+}
 
 # ---------------------------------------------------------------------------
 # Auto-tagging helpers
@@ -103,6 +168,7 @@ def _map_target(target: str) -> str:
 
 class SeedResult(BaseModel):
     fetched: int
+    matched: int
     inserted: int
     updated: int
     skipped: int
@@ -118,64 +184,69 @@ async def seed_exercises(
     _admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> SeedResult:
-    """Fetch ALL exercises from ExerciseDB via paginated requests.
+    """Fetch exercises from ExerciseDB and upsert only the curated targets.
 
-    Uses a small page size (50) to stay within RapidAPI's free-tier
-    limits, with a 1.5 s delay between pages to avoid 429s.
+    Uses limit=2000 in a single request to pull the full ExerciseDB
+    catalog, then filters down to the ~50 target exercises by matching
+    normalised names.
     """
     headers = {
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
     }
 
-    PAGE_SIZE = 50
-    all_exercises: list[dict[str, Any]] = []
-    offset = 0
+    # ── Fetch full catalog ─────────────────────────────────────────────
+    try:
+        resp = await asyncio.to_thread(
+            requests.get,
+            EXERCISEDB_API_URL,
+            headers=headers,
+            params={"limit": 2000},
+            timeout=60,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to reach ExerciseDB: {exc}",
+        )
 
-    # ── Paginated fetch ────────────────────────────────────────────────
-    while True:
-        try:
-            resp = await asyncio.to_thread(
-                requests.get,
-                EXERCISEDB_API_URL,
-                headers=headers,
-                params={"limit": PAGE_SIZE, "offset": offset},
-                timeout=30,
-            )
-            resp.raise_for_status()
-        except requests.RequestException as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Failed to reach ExerciseDB at offset {offset}: {exc}",
-            )
+    all_exercises: list[dict[str, Any]] = resp.json()
 
-        page: list[dict[str, Any]] = resp.json()
-        if not page:
-            break
-
-        all_exercises.extend(page)
-        offset += PAGE_SIZE
-
-        # Rate-limit: pause between pages
-        await asyncio.sleep(1.5)
-
-    # ── Upsert into DB ────────────────────────────────────────────────
+    # ── Filter to target exercises ─────────────────────────────────────
     inserted = 0
     updated = 0
     skipped = 0
+    matched = 0
 
     for item in all_exercises:
-        name = item.get("name", "").strip().title()
-        if not name:
-            skipped += 1
+        raw_name = item.get("name", "").strip()
+        if not raw_name:
             continue
 
-        # Skip if exercise already exists (by name)
+        normalized = _normalize(raw_name)
+        target_name = _TARGET_NORMALIZED.get(normalized)
+        if not target_name:
+            continue
+
+        matched += 1
+
+        # Use the canonical Title Case name from our target list
+        name = target_name
+
+        # Check if exercise already exists (by normalised name)
         existing = await db.scalar(
             select(Exercise).where(
-                Exercise.name_translations["en"].astext == name
+                Exercise.name_translations["en"].astext.op('->>')('en') == name  # noqa: E501
             )
         )
+        # Fallback: also check direct text match
+        if existing is None:
+            existing = await db.scalar(
+                select(Exercise).where(
+                    Exercise.name_translations["en"].astext == name
+                )
+            )
 
         movement = _classify_movement(name)
         boost_type = _classify_boost_type(name)
@@ -183,9 +254,6 @@ async def seed_exercises(
         target = _map_target(item.get("bodyPart", ""))
         instructions = item.get("instructions", [])
 
-        # Build animation URL via ExerciseDB Image Service (gifUrl is no
-        # longer returned in the payload — we must construct it from the
-        # exercise ID + a resolution parameter).
         exercise_db_id = item.get("id", "")
         animation_url = (
             f"https://exercisedb.p.rapidapi.com/image?exerciseId={exercise_db_id}&resolution=360"
@@ -200,6 +268,9 @@ async def seed_exercises(
                 changed = True
             if instructions and existing.instructions != instructions:
                 existing.instructions = instructions
+                changed = True
+            if name and (existing.name_translations or {}).get("en") != name:
+                existing.name_translations = {"en": name}
                 changed = True
             if changed:
                 updated += 1
@@ -222,6 +293,7 @@ async def seed_exercises(
     await db.commit()
     return SeedResult(
         fetched=len(all_exercises),
+        matched=matched,
         inserted=inserted,
         updated=updated,
         skipped=skipped,
