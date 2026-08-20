@@ -6,6 +6,7 @@ import type {
 } from '../../workers/visionProtocol';
 import { LANDMARKS } from '../../workers/squatKinematics';
 import { PLANK_LANDMARKS } from '../../workers/plankKinematics';
+import { HINGE_LANDMARKS } from '../../workers/hingeKinematics';
 import { POSE_CONNECTIONS } from './poseGeometry';
 
 interface SkeletonOverlayProps {
@@ -18,6 +19,22 @@ const NEON = '#00E676';
 const CRIMSON = '#FF1744';
 
 const MIN_VISIBILITY = 0.5;
+
+/**
+ * Data-driven mapping from exercise warnings to the COCO landmark indices
+ * that should be highlighted crimson when the warning is active.
+ */
+const WARNING_JOINTS: Partial<Record<ExerciseWarning, readonly number[]>> = {
+  knee_valgus: [LANDMARKS.leftKnee, LANDMARKS.rightKnee],
+  hip_sag: [PLANK_LANDMARKS.leftHip, PLANK_LANDMARKS.rightHip],
+  hip_pike: [PLANK_LANDMARKS.leftHip, PLANK_LANDMARKS.rightHip],
+  back_round: [
+    HINGE_LANDMARKS.leftShoulder,
+    HINGE_LANDMARKS.leftHip,
+    HINGE_LANDMARKS.rightShoulder,
+    HINGE_LANDMARKS.rightHip,
+  ],
+};
 
 /**
  * Lightweight 2D skeleton renderer.
@@ -68,30 +85,21 @@ export function SkeletonOverlay({ landmarks, warning }: SkeletonOverlayProps) {
     }
     ctx.stroke();
 
-    if (warning === 'knee_valgus') {
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = CRIMSON;
-      ctx.beginPath();
-      for (const joint of [LANDMARKS.leftKnee, LANDMARKS.rightKnee]) {
-        if (!isVisible(joint)) continue;
-        const center = point(joint);
-        ctx.moveTo(center.x + 6, center.y);
-        ctx.arc(center.x, center.y, 6, 0, Math.PI * 2);
+    // Draw crimson circles on warned joints (data-driven lookup).
+    if (warning) {
+      const joints = WARNING_JOINTS[warning];
+      if (joints && joints.length > 0) {
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = CRIMSON;
+        ctx.beginPath();
+        for (const joint of joints) {
+          if (!isVisible(joint)) continue;
+          const center = point(joint);
+          ctx.moveTo(center.x + 6, center.y);
+          ctx.arc(center.x, center.y, 6, 0, Math.PI * 2);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
-    }
-
-    if (warning === 'hip_sag' || warning === 'hip_pike') {
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = CRIMSON;
-      ctx.beginPath();
-      for (const joint of [PLANK_LANDMARKS.leftHip, PLANK_LANDMARKS.rightHip]) {
-        if (!isVisible(joint)) continue;
-        const center = point(joint);
-        ctx.moveTo(center.x + 6, center.y);
-        ctx.arc(center.x, center.y, 6, 0, Math.PI * 2);
-      }
-      ctx.stroke();
     }
   }, [landmarks, warning]);
 

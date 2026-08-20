@@ -72,11 +72,15 @@ export interface KinematicsEngine {
 import { squatEngine } from './squatKinematics';
 import { pushEngine } from './pushUpKinematics';
 import { plankEngine } from './plankKinematics';
+import { pullEngine } from './pullKinematics';
+import { hingeEngine } from './hingeKinematics';
 
 const engines = new Map<MovementPattern, KinematicsEngine>([
   ['squat', squatEngine],
   ['push', pushEngine],
+  ['pull', pullEngine],
   ['core', plankEngine],
+  ['hinge', hingeEngine],
 ]);
 
 /**

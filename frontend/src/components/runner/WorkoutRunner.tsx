@@ -798,6 +798,14 @@ export function WorkoutRunner() {
               </span>
             </div>
           )}
+          {warning === 'back_round' && (
+            <div className="absolute bottom-36 left-0 right-0 z-40 mx-4 flex items-center gap-2 rounded-lg border border-crimson/40 bg-crimson/15 px-3 py-2 backdrop-blur">
+              <ShieldAlert size={14} className="shrink-0 text-crimson" />
+              <span className="text-xs font-semibold text-paper">
+                Back rounding — keep your chest up and hinge at the hips
+              </span>
+            </div>
+          )}
 
           {/* Skip Set button */}
           <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2">
