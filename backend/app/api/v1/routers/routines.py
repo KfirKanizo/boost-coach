@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.models import Routine, User
+from app.models import Exercise, Routine, User
 from app.schemas.routine import (
     RoutineCreateRequest,
     RoutineResponse,
@@ -21,6 +21,38 @@ from app.schemas.routine import (
 )
 
 router = APIRouter(prefix="/routines", tags=["routines"])
+
+
+async def _enrich_exercises(
+    db: AsyncSession, exercises: list[dict]
+) -> list[dict]:
+    """Look up each exercise by ID and merge animation_url + instructions.
+
+    Routine exercises are stored as a JSONB snapshot.  This ensures
+    stale rows (saved before those fields existed) still return the
+    latest data from the ``exercises`` table.
+    """
+    if not exercises:
+        return exercises
+
+    ids = [ex.get("exercise_id") for ex in exercises if ex.get("exercise_id")]
+    if not ids:
+        return exercises
+
+    # Batch-fetch all referenced exercises in one query
+    rows = await db.scalars(
+        select(Exercise).where(Exercise.id.in_(ids))
+    )
+    lookup = {str(row.id): row for row in rows.all()}
+
+    enriched = []
+    for ex in exercises:
+        db_ex = lookup.get(ex.get("exercise_id"))
+        if db_ex:
+            ex["animation_url"] = db_ex.animation_url
+            ex["instructions"] = db_ex.instructions
+        enriched.append(ex)
+    return enriched
 
 
 @router.get("", response_model=list[RoutineResponse])
@@ -34,7 +66,13 @@ async def list_routines(
         .where(Routine.user_id == user.id)
         .order_by(Routine.created_at.desc())
     )
-    return [RoutineResponse.model_validate(row) for row in rows.all()]
+    results = []
+    for row in rows.all():
+        enriched = await _enrich_exercises(db, row.exercises)
+        resp = RoutineResponse.model_validate(row)
+        resp.exercises = enriched
+        results.append(resp)
+    return results
 
 
 @router.post("", response_model=RoutineResponse, status_code=201)
@@ -54,7 +92,10 @@ async def create_routine(
     db.add(routine)
     await db.commit()
     await db.refresh(routine)
-    return RoutineResponse.model_validate(routine)
+    enriched = await _enrich_exercises(db, routine.exercises)
+    resp = RoutineResponse.model_validate(routine)
+    resp.exercises = enriched
+    return resp
 
 
 @router.put("/{routine_id}", response_model=RoutineResponse)
@@ -83,7 +124,10 @@ async def update_routine(
 
     await db.commit()
     await db.refresh(routine)
-    return RoutineResponse.model_validate(routine)
+    enriched = await _enrich_exercises(db, routine.exercises)
+    resp = RoutineResponse.model_validate(routine)
+    resp.exercises = enriched
+    return resp
 
 
 @router.delete("/{routine_id}", status_code=204)
