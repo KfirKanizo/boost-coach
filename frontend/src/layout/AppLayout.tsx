@@ -8,10 +8,11 @@ import { useOfflineSync } from '../hooks/useOfflineSync';
 interface AppLayoutProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
+  isAdmin?: boolean;
   children: ReactNode;
 }
 
-export function AppLayout({ activeTab, onTabChange, children }: AppLayoutProps) {
+export function AppLayout({ activeTab, onTabChange, isAdmin, children }: AppLayoutProps) {
   const isConnected = useNetworkStatus();
   useOfflineSync(isConnected);
 
@@ -36,7 +37,7 @@ export function AppLayout({ activeTab, onTabChange, children }: AppLayoutProps) 
         />
       </header>
       <main className="flex-1">{children}</main>
-      <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
+      <BottomNav activeTab={activeTab} onTabChange={onTabChange} isAdmin={isAdmin} />
     </div>
   );
 }

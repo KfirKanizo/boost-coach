@@ -1,6 +1,6 @@
 """Exercise catalogue endpoints.
 
-GET /api/exercises - returns every seeded exercise for the client catalogue.
+GET /api/exercises - returns every active exercise for the client catalogue.
 """
 
 from fastapi import APIRouter, Depends
@@ -19,6 +19,10 @@ async def list_exercises(
     _user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[ExerciseResponse]:
-    """Return every exercise in the catalogue, ordered by name."""
-    rows = await db.scalars(select(Exercise).order_by(Exercise.id.asc()))
+    """Return every active exercise in the catalogue, ordered by id."""
+    rows = await db.scalars(
+        select(Exercise)
+        .where(Exercise.is_active == True)  # noqa: E712
+        .order_by(Exercise.id.asc())
+    )
     return [ExerciseResponse.model_validate(row) for row in rows.all()]

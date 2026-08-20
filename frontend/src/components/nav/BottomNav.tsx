@@ -4,14 +4,19 @@ import type { TabId } from '../../config/navigation';
 interface BottomNavProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
+  isAdmin?: boolean;
 }
 
-/** Fixed, semi-transparent bottom navigation bar (flat 3-tab model). */
-export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
+/** Fixed, semi-transparent bottom navigation bar. */
+export function BottomNav({ activeTab, onTabChange, isAdmin }: BottomNavProps) {
+  const visibleTabs = NAV_TABS.filter(
+    (tab) => !tab.adminOnly || isAdmin,
+  );
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-surface/80 pb-safe backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-md items-stretch justify-around">
-        {NAV_TABS.map(({ id, label, icon: Icon }) => {
+        {visibleTabs.map(({ id, label, icon: Icon }) => {
           const isActive = id === activeTab;
           return (
             <button

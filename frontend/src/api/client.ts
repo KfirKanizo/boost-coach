@@ -80,6 +80,26 @@ export interface GamificationStats {
   activity_days: string[];
 }
 
+/** System-wide metrics returned by GET /admin/stats. */
+export interface AdminStats {
+  total_users: number;
+  total_workouts: number;
+  total_exercises: number;
+}
+
+/** Exercise record returned by admin endpoints. */
+export interface AdminExercise {
+  id: string;
+  name_translations: Record<string, string>;
+  primary_muscle: string;
+  movement_pattern: string;
+  equipment_required: string;
+  boost_type: string;
+  animation_url: string | null;
+  instructions: string[] | null;
+  is_active: boolean;
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
@@ -103,6 +123,7 @@ export interface CoachFeedback {
 export interface UserProfile {
   id: string;
   email: string;
+  isAdmin: boolean;
   gender: string | null;
   age: number | null;
   weight: number | null;
@@ -319,6 +340,29 @@ export const api = {
   /** GET /history/stats — aggregated gamification stats for the dashboard. */
   getGamificationStats(): Promise<GamificationStats> {
     return request<GamificationStats>('/history/stats');
+  },
+
+  // ── Admin endpoints ──────────────────────────────────────────────
+
+  /** GET /admin/stats — system-wide metrics (admin only). */
+  getAdminStats(): Promise<AdminStats> {
+    return request<AdminStats>('/admin/stats');
+  },
+
+  /** GET /admin/exercises — all exercises including inactive (admin only). */
+  getAdminExercises(): Promise<AdminExercise[]> {
+    return request<AdminExercise[]>('/admin/exercises');
+  },
+
+  /** PUT /admin/exercises/:id — update exercise fields (admin only). */
+  updateAdminExercise(
+    exerciseId: string,
+    data: { movement_pattern?: string; is_active?: boolean },
+  ): Promise<AdminExercise> {
+    return request<AdminExercise>(`/admin/exercises/${exerciseId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 
   // -- Legacy boost stubs (kept for studio components compilation) --

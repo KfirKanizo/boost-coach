@@ -96,6 +96,7 @@ class Exercise(Base):
     boost_type: Mapped[str] = mapped_column(String, nullable=False)
     animation_url: Mapped[str | None] = mapped_column(String, nullable=True)
     instructions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
 class DailyBoost(Base):

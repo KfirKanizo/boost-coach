@@ -22,6 +22,9 @@ async def test_api_v1_routes_are_mounted(async_client) -> None:
         "/api/v1/history/complete",
         "/api/v1/history/weekly-stats",
         "/api/v1/history/stats",
+        "/api/v1/admin/users",
+        "/api/v1/admin/stats",
+        "/api/v1/admin/exercises",
         "/health",
     }
     assert expected.issubset(paths.keys())

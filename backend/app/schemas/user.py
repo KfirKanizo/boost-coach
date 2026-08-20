@@ -19,6 +19,7 @@ class UserProfileResponse(BaseModel):
 
     id: UUID
     email: str
+    is_admin: bool
     gender: str | None
     age: int | None
     weight: float | None

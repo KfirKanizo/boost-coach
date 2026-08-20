@@ -35,6 +35,7 @@ function profile(overrides: Partial<UserProfile> = {}): UserProfile {
   return {
     id: 'u-1',
     email: 'test@boostcoach.fit',
+    isAdmin: false,
     gender: null,
     age: null,
     weight: 70,

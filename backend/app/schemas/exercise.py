@@ -17,3 +17,9 @@ class ExerciseResponse(BaseModel):
     boost_type: str
     animation_url: Optional[str] = None
     instructions: Optional[List[str]] = None
+    is_active: bool = True
+
+
+class ExerciseUpdateRequest(BaseModel):
+    movement_pattern: Optional[str] = None
+    is_active: Optional[bool] = None
