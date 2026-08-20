@@ -261,16 +261,20 @@ export const api = {
   },
 
   /** GET /users/me — the current user's profile (weight, height, streak). */
-  getUserProfile(): Promise<UserProfile> {
-    return request<UserProfile>('/users/me');
+  async getUserProfile(): Promise<UserProfile> {
+    const raw = await request<{ is_admin: boolean } & Omit<UserProfile, 'isAdmin'>>('/users/me');
+    const { is_admin, ...rest } = raw;
+    return { ...rest, isAdmin: is_admin };
   },
 
   /** PATCH /users/me/profile — update weight/height as the coach prompts. */
-  updateUserProfile(data: UserProfileUpdateRequest): Promise<UserProfile> {
-    return request<UserProfile>('/users/me/profile', {
+  async updateUserProfile(data: UserProfileUpdateRequest): Promise<UserProfile> {
+    const raw = await request<{ is_admin: boolean } & Omit<UserProfile, 'isAdmin'>>('/users/me/profile', {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    const { is_admin, ...rest } = raw;
+    return { ...rest, isAdmin: is_admin };
   },
 
   /** GET /exercises — full exercise catalogue. */

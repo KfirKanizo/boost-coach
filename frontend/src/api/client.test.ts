@@ -73,6 +73,7 @@ describe('api.getUserProfile', () => {
     const profile = {
       id: 'u-1',
       email: 'test@boostcoach.fit',
+      is_admin: false,
       weight: null,
       height: null,
       current_streak: 2,
@@ -80,7 +81,15 @@ describe('api.getUserProfile', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, profile));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(api.getUserProfile()).resolves.toEqual(profile);
+    const result = await api.getUserProfile();
+    expect(result).toEqual({
+      id: 'u-1',
+      email: 'test@boostcoach.fit',
+      isAdmin: false,
+      weight: null,
+      height: null,
+      current_streak: 2,
+    });
 
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/users\/me$/);
@@ -92,6 +101,7 @@ describe('api.updateUserProfile', () => {
     const updated = {
       id: 'u-1',
       email: 'test@boostcoach.fit',
+      is_admin: false,
       weight: 75,
       height: null,
       current_streak: 2,
@@ -99,7 +109,15 @@ describe('api.updateUserProfile', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, updated));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(api.updateUserProfile({ weight: 75 })).resolves.toEqual(updated);
+    const result = await api.updateUserProfile({ weight: 75 });
+    expect(result).toEqual({
+      id: 'u-1',
+      email: 'test@boostcoach.fit',
+      isAdmin: false,
+      weight: 75,
+      height: null,
+      current_streak: 2,
+    });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/users\/me\/profile$/);
