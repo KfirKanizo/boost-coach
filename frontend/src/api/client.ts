@@ -122,10 +122,23 @@ export interface UserProfileUpdateRequest {
   fitness_styles?: string[];
 }
 
+/** A single conversation turn sent as history context. */
+export interface ChatHistoryTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 /** Response from POST /coach/chat. */
 export interface CoachChatResponse {
   reply: string;
   is_fallback: boolean;
+}
+
+/** Payload for POST /coach/chat. */
+export interface CoachChatPayload {
+  message: string;
+  system_prompt?: string;
+  history?: ChatHistoryTurn[];
 }
 
 export class ApiError extends Error {
@@ -245,10 +258,17 @@ export const api = {
   },
 
   /** POST /coach/chat — free-form conversational chat with the coach. */
-  sendCoachChat(message: string): Promise<CoachChatResponse> {
+  sendCoachChat(
+    message: string,
+    options?: { system_prompt?: string; history?: ChatHistoryTurn[] },
+  ): Promise<CoachChatResponse> {
+    const payload: CoachChatPayload = {
+      message,
+      ...options,
+    };
     return request<CoachChatResponse>('/coach/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify(payload),
     });
   },
 

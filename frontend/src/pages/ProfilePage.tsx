@@ -149,7 +149,7 @@ export function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // Edit state
+  // Unified edit state
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [gender, setGender] = useState<string | null>(null);
@@ -162,8 +162,8 @@ export function ProfilePage() {
   // Local profile (name + picture)
   const [localName, setLocalName] = useState('');
   const [localPicture, setLocalPicture] = useState<string | null>(null);
-  const [editingLocal, setEditingLocal] = useState(false);
-  const [localNameDraft, setLocalNameDraft] = useState('');
+  const [draftName, setDraftName] = useState('');
+  const [draftPicture, setDraftPicture] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadProfile = useCallback(async () => {
@@ -189,7 +189,6 @@ export function ProfilePage() {
 
   useEffect(() => {
     void loadProfile();
-    // Load localStorage name/picture
     setLocalName(getProfileName());
     setLocalPicture(getProfilePicture());
   }, [loadProfile]);
@@ -201,11 +200,35 @@ export function ProfilePage() {
     navigate('/login', { replace: true });
   };
 
+  /** Enter unified edit mode — snapshot current values into drafts. */
+  const enterEdit = useCallback(() => {
+    setDraftName(localName);
+    setDraftPicture(localPicture);
+    setEditing(true);
+  }, [localName, localPicture]);
+
+  /** Cancel edit — discard drafts, exit edit mode. */
+  const cancelEdit = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  /** Save both localStorage (name/picture) and backend (metrics) in one go. */
   const handleSave = useCallback(async () => {
     setSaving(true);
     setError(null);
     try {
-      const patch: UserProfileUpdateRequest = { gender: gender ?? undefined, age, weight, height };
+      // Persist local data
+      setProfileName(draftName);
+      setLocalName(draftName);
+      setProfilePicture(draftPicture);
+      setLocalPicture(draftPicture);
+      // Persist backend data
+      const patch: UserProfileUpdateRequest = {
+        gender: gender ?? undefined,
+        age,
+        weight,
+        height,
+      };
       if (goals.length > 0) patch.fitness_goals = goals;
       if (styles.length > 0) patch.fitness_styles = styles;
       const updated = await api.updateUserProfile(patch);
@@ -216,13 +239,7 @@ export function ProfilePage() {
     } finally {
       setSaving(false);
     }
-  }, [gender, age, weight, height, goals, styles]);
-
-  const handleSaveLocal = useCallback(() => {
-    setProfileName(localNameDraft);
-    setLocalName(localNameDraft);
-    setEditingLocal(false);
-  }, [localNameDraft]);
+  }, [draftName, draftPicture, gender, age, weight, height, goals, styles]);
 
   const handlePictureChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,19 +248,12 @@ export function ProfilePage() {
       if (file.size > 500 * 1024) return;
       const reader = new FileReader();
       reader.onload = () => {
-        const dataUrl = reader.result as string;
-        setProfilePicture(dataUrl);
-        setLocalPicture(dataUrl);
+        setDraftPicture(reader.result as string);
       };
       reader.readAsDataURL(file);
     },
     [],
   );
-
-  const handleRemovePicture = useCallback(() => {
-    setProfilePicture(null);
-    setLocalPicture(null);
-  }, []);
 
   const toggleGoal = useCallback((id: string) => {
     setGoals((prev) =>
@@ -261,7 +271,12 @@ export function ProfilePage() {
   const cat = useMemo(() => bmiCategory(bmi), [bmi]);
 
   const initials = localName
-    ? localName.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+    ? localName
+        .split(' ')
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
     : null;
 
   return (
@@ -269,52 +284,25 @@ export function ProfilePage() {
       {/* Header */}
       <header className="mb-6 flex items-center gap-4">
         {/* Profile picture / avatar */}
-        <button
-          type="button"
-          onClick={() => {
-            if (editingLocal) {
-              fileRef.current?.click();
-            }
-          }}
-          className={`relative flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neon/15 ${editingLocal ? 'cursor-pointer ring-2 ring-neon/30' : ''}`}
-        >
-          {localPicture ? (
+        <div className="relative flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neon/15">
+          {(editing ? draftPicture : localPicture) ? (
             <img
-              src={localPicture}
+              src={editing ? draftPicture! : localPicture!}
               alt="Profile"
               className="h-full w-full object-cover"
             />
           ) : initials ? (
-            <span className="font-display text-xl font-bold text-neon">{initials}</span>
+            <span className="font-display text-xl font-bold text-neon">
+              {initials}
+            </span>
           ) : (
             <span className="font-display text-xl font-bold text-neon">BC</span>
           )}
-          {editingLocal && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <Camera size={20} className="text-paper" />
-            </div>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handlePictureChange}
-          />
-        </button>
+        </div>
 
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-bold">Profile</h1>
-          {editingLocal ? (
-            <input
-              type="text"
-              value={localNameDraft}
-              onChange={(e) => setLocalNameDraft(e.target.value)}
-              placeholder="Your name"
-              maxLength={40}
-              className="mt-0.5 w-full truncate border-b border-neon bg-transparent text-sm font-semibold text-paper placeholder:text-ash/60 focus:outline-none"
-            />
-          ) : profile ? (
+          {profile ? (
             <p className="truncate text-sm text-ash">
               {localName || profile.email}
             </p>
@@ -324,43 +312,27 @@ export function ProfilePage() {
         </div>
 
         {!loading && !error && profile && (
-          <div className="flex gap-2">
-            {editingLocal && (
-              <button
-                type="button"
-                onClick={() => {
-                  handleRemovePicture();
-                  handleSaveLocal();
-                }}
-                className="flex h-10 items-center gap-2 rounded-full bg-surface px-4 text-sm font-bold text-ash transition-opacity active:scale-[0.97]"
-              >
-                Cancel
-              </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (editing) {
+                void handleSave();
+              } else {
+                enterEdit();
+              }
+            }}
+            disabled={saving}
+            className="flex h-10 items-center gap-2 rounded-full bg-neon px-4 text-sm font-bold text-ink transition-opacity disabled:opacity-60 active:scale-[0.97]"
+          >
+            {saving ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : editing ? (
+              <Save size={16} />
+            ) : (
+              <Pencil size={16} />
             )}
-            <button
-              type="button"
-              onClick={() => {
-                if (editingLocal) {
-                  handleSaveLocal();
-                } else if (editing) {
-                  void handleSave();
-                } else {
-                  setEditing(true);
-                }
-              }}
-              disabled={saving}
-              className="flex h-10 items-center gap-2 rounded-full bg-neon px-4 text-sm font-bold text-ink transition-opacity disabled:opacity-60 active:scale-[0.97]"
-            >
-              {saving ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : editing || editingLocal ? (
-                <Save size={16} />
-              ) : (
-                <Pencil size={16} />
-              )}
-              {saving ? 'Saving' : editing || editingLocal ? 'Save' : 'Edit'}
-            </button>
-          </div>
+            {saving ? 'Saving' : editing ? 'Save' : 'Edit'}
+          </button>
         )}
       </header>
 
@@ -396,32 +368,47 @@ export function ProfilePage() {
       {/* Profile content */}
       {!loading && !error && profile && (
         <>
-          {/* Local name edit section */}
-          {!editingLocal && (
-            <button
-              type="button"
-              onClick={() => {
-                setLocalNameDraft(localName);
-                setEditingLocal(true);
-              }}
-              className="mb-4 flex w-full items-center gap-3 rounded-card bg-surface p-4 text-left transition-all hover:bg-white/[0.07] active:scale-[0.98]"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neon/15">
-                <User size={18} className="text-neon" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs uppercase tracking-wider text-ash">Name & Photo</p>
-                <p className="truncate text-sm font-semibold text-paper">
-                  {localName || 'Tap to set your name'}
-                </p>
-              </div>
-              <Pencil size={14} className="text-ash" />
-            </button>
-          )}
-
           {editing ? (
-            /* ---- Edit mode ---- */
+            /* ---- Unified edit mode ---- */
             <div className="flex flex-col gap-6">
+              {/* Name + Photo */}
+              <section className="flex flex-col items-center gap-4 rounded-card bg-surface p-5">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="group relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-white/20 transition-colors hover:border-neon/50"
+                >
+                  {draftPicture ? (
+                    <img
+                      src={draftPicture}
+                      alt="Profile"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Camera
+                      size={28}
+                      className="text-ash/40 group-hover:text-neon"
+                    />
+                  )}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePictureChange}
+                  />
+                </button>
+                <span className="text-xs text-ash">Tap to change photo</span>
+                <input
+                  type="text"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  placeholder="Your name"
+                  maxLength={40}
+                  className="w-full rounded-2xl border-2 border-white/10 bg-ink px-4 py-3 text-center text-base font-semibold text-paper placeholder:text-ash/60 focus:border-neon focus:outline-none"
+                />
+              </section>
+
               {/* Gender */}
               <section>
                 <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
@@ -448,18 +435,48 @@ export function ProfilePage() {
 
               {/* Metrics */}
               <section className="flex flex-col gap-5 rounded-card bg-surface p-5">
-                <Slider label="Age" unit="yrs" value={age} min={10} max={100} step={1} onChange={setAge} />
-                <Slider label="Weight" unit="kg" value={weight} min={30} max={200} step={0.5} onChange={setWeight} />
-                <Slider label="Height" unit="cm" value={height} min={100} max={220} step={1} onChange={setHeight} />
+                <Slider
+                  label="Age"
+                  unit="yrs"
+                  value={age}
+                  min={10}
+                  max={100}
+                  step={1}
+                  onChange={setAge}
+                />
+                <Slider
+                  label="Weight"
+                  unit="kg"
+                  value={weight}
+                  min={30}
+                  max={200}
+                  step={0.5}
+                  onChange={setWeight}
+                />
+                <Slider
+                  label="Height"
+                  unit="cm"
+                  value={height}
+                  min={100}
+                  max={220}
+                  step={1}
+                  onChange={setHeight}
+                />
               </section>
 
               {/* BMI live */}
               <section className="rounded-card bg-surface p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold uppercase tracking-wider text-ash">BMI</span>
-                  <span className="font-display text-2xl font-bold text-paper">{bmi.toFixed(1)}</span>
+                  <span className="text-sm font-bold uppercase tracking-wider text-ash">
+                    BMI
+                  </span>
+                  <span className="font-display text-2xl font-bold text-paper">
+                    {bmi.toFixed(1)}
+                  </span>
                 </div>
-                <p className={`mt-1 text-right text-xs font-bold ${cat.color}`}>{cat.label}</p>
+                <p className={`mt-1 text-right text-xs font-bold ${cat.color}`}>
+                  {cat.label}
+                </p>
               </section>
 
               {/* Goals */}
@@ -469,7 +486,13 @@ export function ProfilePage() {
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {FITNESS_GOALS.map(({ id, label, icon }) => (
-                    <Chip key={id} label={label} icon={icon} active={goals.includes(id)} onClick={() => toggleGoal(id)} />
+                    <Chip
+                      key={id}
+                      label={label}
+                      icon={icon}
+                      active={goals.includes(id)}
+                      onClick={() => toggleGoal(id)}
+                    />
                   ))}
                 </div>
               </section>
@@ -481,10 +504,25 @@ export function ProfilePage() {
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {FITNESS_STYLES.map(({ id, label, icon }) => (
-                    <Chip key={id} label={label} icon={icon} active={styles.includes(id)} onClick={() => toggleStyle(id)} />
+                    <Chip
+                      key={id}
+                      label={label}
+                      icon={icon}
+                      active={styles.includes(id)}
+                      onClick={() => toggleStyle(id)}
+                    />
                   ))}
                 </div>
               </section>
+
+              {/* Cancel */}
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/10 bg-surface py-3 text-sm font-bold text-ash transition-all active:scale-[0.98]"
+              >
+                Cancel
+              </button>
             </div>
           ) : (
             /* ---- View mode ---- */
@@ -494,18 +532,41 @@ export function ProfilePage() {
               </h2>
 
               {[
-                { label: 'Gender', value: gender?.replace(/_/g, ' ') ?? '—', capitalize: true },
-                { label: 'Age', value: profile.age != null ? `${profile.age} yrs` : '—' },
-                { label: 'Weight', value: profile.weight != null ? `${profile.weight} kg` : '—' },
-                { label: 'Height', value: profile.height != null ? `${profile.height} cm` : '—' },
-                { label: 'BMI', value: profile.weight && profile.height ? `${bmi.toFixed(1)} ${cat.label}` : '—', valueClass: profile.weight && profile.height ? cat.color : undefined },
+                {
+                  label: 'Gender',
+                  value: gender?.replace(/_/g, ' ') ?? '—',
+                  capitalize: true,
+                },
+                {
+                  label: 'Age',
+                  value: profile.age != null ? `${profile.age} yrs` : '—',
+                },
+                {
+                  label: 'Weight',
+                  value: profile.weight != null ? `${profile.weight} kg` : '—',
+                },
+                {
+                  label: 'Height',
+                  value: profile.height != null ? `${profile.height} cm` : '—',
+                },
+                {
+                  label: 'BMI',
+                  value:
+                    profile.weight && profile.height
+                      ? `${bmi.toFixed(1)} ${cat.label}`
+                      : '—',
+                  valueClass:
+                    profile.weight && profile.height ? cat.color : undefined,
+                },
               ].map(({ label, value, capitalize, valueClass }) => (
                 <div
                   key={label}
                   className="flex items-center justify-between rounded-card bg-surface p-5"
                 >
                   <span className="text-ash">{label}</span>
-                  <span className={`font-display text-xl font-bold text-paper ${valueClass ?? ''} ${capitalize ? 'capitalize' : ''}`}>
+                  <span
+                    className={`font-display text-xl font-bold text-paper ${valueClass ?? ''} ${capitalize ? 'capitalize' : ''}`}
+                  >
                     {value}
                   </span>
                 </div>
@@ -513,10 +574,15 @@ export function ProfilePage() {
 
               {goals.length > 0 && (
                 <div className="mt-2">
-                  <p className="mb-2 text-xs uppercase tracking-wider text-ash">Goals</p>
+                  <p className="mb-2 text-xs uppercase tracking-wider text-ash">
+                    Goals
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {goals.map((g) => (
-                      <span key={g} className="rounded-full bg-neon/15 px-3 py-1 text-xs font-bold text-neon capitalize">
+                      <span
+                        key={g}
+                        className="rounded-full bg-neon/15 px-3 py-1 text-xs font-bold text-neon capitalize"
+                      >
                         {g.replace(/_/g, ' ')}
                       </span>
                     ))}
@@ -526,10 +592,15 @@ export function ProfilePage() {
 
               {styles.length > 0 && (
                 <div className="mt-2">
-                  <p className="mb-2 text-xs uppercase tracking-wider text-ash">Styles</p>
+                  <p className="mb-2 text-xs uppercase tracking-wider text-ash">
+                    Styles
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {styles.map((s) => (
-                      <span key={s} className="rounded-full bg-neon/15 px-3 py-1 text-xs font-bold text-neon capitalize">
+                      <span
+                        key={s}
+                        className="rounded-full bg-neon/15 px-3 py-1 text-xs font-bold text-neon capitalize"
+                      >
                         {s.replace(/_/g, ' ')}
                       </span>
                     ))}
@@ -547,7 +618,12 @@ export function ProfilePage() {
             className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-crimson py-4 text-base font-bold text-paper transition-opacity disabled:opacity-60 active:scale-[0.98]"
           >
             {loggingOut ? (
-              <Loader2 size={18} className="animate-spin" role="status" aria-label="Signing out" />
+              <Loader2
+                size={18}
+                className="animate-spin"
+                role="status"
+                aria-label="Signing out"
+              />
             ) : (
               <LogOut size={18} aria-hidden="true" />
             )}

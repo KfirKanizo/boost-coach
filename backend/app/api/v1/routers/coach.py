@@ -33,4 +33,10 @@ async def chat(
     db: AsyncSession = Depends(get_db),
 ) -> CoachChatResponse:
     """Send a free-form message to the coach and get an AI reply."""
-    return await generate_coach_chat(db, user.id, payload.message)
+    return await generate_coach_chat(
+        db,
+        user.id,
+        payload.message,
+        system_prompt=payload.system_prompt,
+        history=payload.history,
+    )

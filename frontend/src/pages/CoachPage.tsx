@@ -1,14 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Send, Sparkles } from 'lucide-react';
-import type { UserProfile } from '../api/client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  Loader2,
+  Send,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { api } from '../api/client';
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'coach';
-  content: string;
-  isFallback?: boolean;
-}
+import type { UserProfile, GamificationStats } from '../api/client';
+import {
+  loadChatHistory,
+  saveChatHistory,
+  clearChatHistory,
+} from '../services/chatStorage';
+import type { ChatMessage } from '../services/chatStorage';
+import { buildSystemPrompt } from '../services/systemPrompt';
+import type { PromptProfile, PromptStats } from '../services/systemPrompt';
 
 type CoachState =
   | { phase: 'idle' }
@@ -16,7 +23,10 @@ type CoachState =
   | { phase: 'done' }
   | { phase: 'error'; message: string };
 
-/** Animated 3-dot typing indicator shown while the coach "is thinking". */
+/* ------------------------------------------------------------------ */
+/*  Tiny presentational components                                     */
+/* ------------------------------------------------------------------ */
+
 function TypingIndicator() {
   return (
     <div
@@ -35,7 +45,6 @@ function TypingIndicator() {
   );
 }
 
-/** Left-aligned coach bubble (dark surface, white text per the design system). */
 function CoachBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="max-w-[85%] self-start rounded-card rounded-bl-sm bg-surface px-5 py-4">
@@ -44,7 +53,6 @@ function CoachBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Right-aligned user bubble. */
 function UserBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="max-w-[85%] self-end rounded-card rounded-br-sm bg-neon/15 px-5 py-4">
@@ -52,6 +60,10 @@ function UserBubble({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Progressive profiling helpers                                      */
+/* ------------------------------------------------------------------ */
 
 function ThankYouBubble() {
   return (
@@ -71,7 +83,6 @@ interface ProfilePromptProps {
   onSave: () => void;
 }
 
-/** Coach chat bubble containing a numerical input + neon Save button. */
 function ProfilePrompt({
   message,
   value,
@@ -109,41 +120,122 @@ function ProfilePrompt({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  CoachPage                                                          */
+/* ------------------------------------------------------------------ */
+
 export function CoachPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<CoachState>({ phase: 'idle' });
   const [input, setInput] = useState('');
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [stats, setStats] = useState<GamificationStats | null>(null);
+  const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
+
+  // Progressive profiling
   const [weightInput, setWeightInput] = useState('');
   const [heightInput, setHeightInput] = useState('');
   const [savingWeight, setSavingWeight] = useState(false);
   const [savingHeight, setSavingHeight] = useState(false);
   const [savedWeight, setSavedWeight] = useState(false);
   const [savedHeight, setSavedHeight] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  /* -------------------------------------------------------------- */
+  /*  Load profile + gamification stats + localStorage history on   */
+  /*  mount. Build the dynamic system prompt once data arrives.      */
+  /* -------------------------------------------------------------- */
+
   useEffect(() => {
     let active = true;
-    api
-      .getUserProfile()
-      .then((data) => {
-        if (active) setProfile(data);
-      })
-      .catch(() => {
-        // Offline/transient failure — stay silent; the prompt returns next visit.
-      });
+
+    async function init() {
+      try {
+        const [profileData, statsData] = await Promise.all([
+          api.getUserProfile(),
+          api.getGamificationStats(),
+        ]);
+
+        if (!active) return;
+
+        setProfile(profileData);
+        setStats(statsData);
+
+        // Build the dynamic system prompt.
+        const pp: PromptProfile = {
+          email: profileData.email,
+          gender: profileData.gender,
+          age: profileData.age,
+          weight: profileData.weight,
+          height: profileData.height,
+          fitness_goals: profileData.fitness_goals,
+          fitness_styles: profileData.fitness_styles,
+        };
+        const ps: PromptStats = {
+          level: statsData.level,
+          total_xp: statsData.total_xp,
+          full_routines: statsData.full_routines,
+          single_exercises: statsData.single_exercises,
+          total_verified_reps: statsData.total_verified_reps,
+          sessions_this_week: statsData.sessions_this_week,
+          weekly_goal: statsData.weekly_goal,
+          current_streak: statsData.current_streak,
+        };
+        const prompt = buildSystemPrompt(pp, ps);
+        setSystemPrompt(prompt);
+
+        // Load persisted chat history from localStorage.
+        const history = loadChatHistory(profileData.email);
+        if (history.length > 0) setMessages(history);
+      } catch {
+        // Offline / transient — the prompt is rebuilt on next visit.
+      }
+    }
+
+    void init();
     return () => {
       active = false;
     };
   }, []);
 
-  // Auto-scroll to the latest message.
+  /* -------------------------------------------------------------- */
+  /*  Persist every new message to localStorage.                    */
+  /* -------------------------------------------------------------- */
+
+  const persistHistory = useCallback(
+    (updated: ChatMessage[]) => {
+      if (profile) saveChatHistory(profile.email, updated);
+    },
+    [profile],
+  );
+
+  /* -------------------------------------------------------------- */
+  /*  Auto-scroll to the latest message.                            */
+  /* -------------------------------------------------------------- */
+
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
   }, [messages, state.phase]);
 
-  const sendMessage = async () => {
+  /* -------------------------------------------------------------- */
+  /*  Clear conversation history                                    */
+  /* -------------------------------------------------------------- */
+
+  const handleClearHistory = useCallback(() => {
+    setMessages([]);
+    if (profile) clearChatHistory(profile.email);
+  }, [profile]);
+
+  /* -------------------------------------------------------------- */
+  /*  Send a message to the real LLM via the backend.               */
+  /* -------------------------------------------------------------- */
+
+  const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || state.phase === 'loading') return;
 
@@ -151,20 +243,38 @@ export function CoachPage() {
       id: `u-${Date.now()}`,
       role: 'user',
       content: text,
+      timestamp: Date.now(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    persistHistory(updated);
     setInput('');
     setState({ phase: 'loading', userMessage: text });
 
+    // Build conversation history for the LLM (last 20 turns to stay within context).
+    const historyForApi = messages.slice(-20).map((m) => ({
+      role: m.role === 'coach' ? ('assistant' as const) : ('user' as const),
+      content: m.content,
+    }));
+
     try {
-      const response = await api.sendCoachChat(text);
+      const response = await api.sendCoachChat(text, {
+        system_prompt: systemPrompt ?? undefined,
+        history: historyForApi,
+      });
+
       const coachMsg: ChatMessage = {
         id: `c-${Date.now()}`,
         role: 'coach',
         content: response.reply,
         isFallback: response.is_fallback,
+        timestamp: Date.now(),
       };
-      setMessages((prev) => [...prev, coachMsg]);
+
+      const withCoach = [...updated, coachMsg];
+      setMessages(withCoach);
+      persistHistory(withCoach);
       setState({ phase: 'done' });
     } catch (err) {
       setState({
@@ -173,7 +283,13 @@ export function CoachPage() {
           err instanceof Error ? err.message : 'The Coach is unavailable',
       });
     }
-  };
+  }, [
+    input,
+    state.phase,
+    messages,
+    systemPrompt,
+    persistHistory,
+  ]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -181,6 +297,10 @@ export function CoachPage() {
       void sendMessage();
     }
   };
+
+  /* -------------------------------------------------------------- */
+  /*  Progressive profiling (weight / height)                       */
+  /* -------------------------------------------------------------- */
 
   const saveMetric = async (key: 'weight' | 'height', raw: string) => {
     const numeric = Number(raw);
@@ -211,13 +331,30 @@ export function CoachPage() {
   const heightMissing =
     profile != null && profile.weight != null && profile.height == null;
 
+  /* -------------------------------------------------------------- */
+  /*  Render                                                         */
+  /* -------------------------------------------------------------- */
+
   return (
     <div className="flex min-h-screen flex-col pb-28">
-      <header className="px-4 pb-4 pt-6">
-        <h1 className="font-display text-2xl font-bold">The Coach</h1>
-        <p className="text-sm text-ash">
-          Personalized feedback after every Boost.
-        </p>
+      <header className="flex items-start justify-between px-4 pb-4 pt-6">
+        <div>
+          <h1 className="font-display text-2xl font-bold">The Coach</h1>
+          <p className="text-sm text-ash">
+            Personalized feedback powered by AI.
+          </p>
+        </div>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClearHistory}
+            aria-label="Clear chat history"
+            className="flex h-8 items-center gap-1.5 rounded-full bg-surface px-3 text-xs font-bold text-ash transition-colors hover:bg-crimson/15 hover:text-crimson"
+          >
+            <Trash2 size={14} />
+            Clear
+          </button>
+        )}
       </header>
 
       {/* Chat history */}
@@ -274,17 +411,19 @@ export function CoachPage() {
             ) : (
               <CoachBubble>
                 <p className="text-sm leading-relaxed text-paper">{msg.content}</p>
-                <div className="mt-2 flex items-center gap-2">
-                  {msg.isFallback ? (
-                    <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-ash">
-                      Local response
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-neon/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-neon">
-                      BoostCoach AI
-                    </span>
-                  )}
-                </div>
+                {msg.isFallback != null && (
+                  <div className="mt-2 flex items-center gap-2">
+                    {msg.isFallback ? (
+                      <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-ash">
+                        Local response
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-neon/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-neon">
+                        BoostCoach AI
+                      </span>
+                    )}
+                  </div>
+                )}
               </CoachBubble>
             )}
           </div>
@@ -330,7 +469,11 @@ export function CoachPage() {
             aria-label="Send message"
             className="flex h-12 w-12 items-center justify-center rounded-full bg-neon text-ink transition-all hover:shadow-neon-glow active:scale-95 disabled:opacity-40"
           >
-            <Send size={20} />
+            {state.phase === 'loading' ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              <Send size={20} />
+            )}
           </button>
         </div>
       </div>

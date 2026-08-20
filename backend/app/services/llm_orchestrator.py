@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.models import DailyBoost, User
-from app.schemas.swap import CoachChatResponse, CoachFeedbackResponse
+from app.schemas.swap import ChatHistoryMessage, CoachChatResponse, CoachFeedbackResponse
 
 logger = logging.getLogger(__name__)
 
@@ -161,8 +161,16 @@ async def generate_coach_chat(
     db: AsyncSession,
     user_id,
     user_message: str,
+    *,
+    system_prompt: str | None = None,
+    history: list[ChatHistoryMessage] | None = None,
 ) -> CoachChatResponse:
-    """Free-form conversational chat with the coach."""
+    """Free-form conversational chat with the coach.
+
+    When *system_prompt* is supplied it replaces the hardcoded persona so the
+    frontend can inject user-specific context (name, weight, goals, stats).
+    *history* provides prior conversation turns for multi-turn continuity.
+    """
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -170,6 +178,27 @@ async def generate_coach_chat(
     if not settings.llm_api_key:
         logger.warning("No LLM_API_KEY configured; using local fallback chat")
         return CoachChatResponse(reply=CHAT_FALLBACK, is_fallback=True)
+
+    # Build the message list for the LLM.
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": system_prompt or CHAT_SYSTEM_PROMPT},
+    ]
+
+    # Append conversation history when provided.
+    if history:
+        for turn in history:
+            messages.append({"role": turn.role, "content": turn.content})
+
+    # The current user turn — always includes the streak context from the DB.
+    messages.append(
+        {
+            "role": "user",
+            "content": (
+                f"The user is on a {user.current_streak}-day streak.\n"
+                f"User message: {user_message}"
+            ),
+        }
+    )
 
     client = AsyncOpenAI(
         api_key=settings.llm_api_key,
@@ -179,16 +208,7 @@ async def generate_coach_chat(
         completion = await asyncio.wait_for(
             client.chat.completions.create(
                 model=settings.llm_model,
-                messages=[
-                    {"role": "system", "content": CHAT_SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": (
-                            f"The user is on a {user.current_streak}-day streak.\n"
-                            f"User message: {user_message}"
-                        ),
-                    },
-                ],
+                messages=messages,
                 temperature=0.7,
                 max_tokens=200,
             ),

@@ -176,26 +176,48 @@ describe('ProfilePage', () => {
 
     renderProfile();
 
-    // Should show "Alice" in header subtitle and in Name & Photo section
-    const aliceElements = await screen.findAllByText('Alice');
-    expect(aliceElements.length).toBeGreaterThanOrEqual(2);
+    // Should show "Alice" in header subtitle
+    expect(await screen.findByText('Alice')).toBeInTheDocument();
   });
 
-  it('allows editing local name', async () => {
+  it('allows editing local name inside unified edit mode', async () => {
+    vi.mocked(api.getUserProfile).mockResolvedValue(profile());
+    vi.mocked(api.updateUserProfile).mockResolvedValue(profile());
+
+    renderProfile();
+    await screen.findByText('test@boostcoach.fit');
+
+    // Click the Edit button to enter unified edit mode
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+
+    // The name input should be visible in edit mode
+    const nameInput = screen.getByPlaceholderText('Your name');
+    expect(nameInput).toBeInTheDocument();
+
+    // Type a new name
+    await userEvent.type(nameInput, 'Alice');
+
+    // Save — this persists both localStorage name AND backend metrics
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(setProfileName).toHaveBeenCalledWith('Alice');
+    expect(api.updateUserProfile).toHaveBeenCalled();
+  });
+
+  it('cancels edit mode without saving', async () => {
     vi.mocked(api.getUserProfile).mockResolvedValue(profile());
 
     renderProfile();
     await screen.findByText('test@boostcoach.fit');
 
-    // Click the Name & Photo row to start editing
-    await userEvent.click(screen.getByText('Tap to set your name'));
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+    await screen.findByPlaceholderText('Your name');
 
-    // Type a new name
-    await userEvent.type(screen.getByPlaceholderText('Your name'), 'Alice');
+    // Cancel should exit edit mode
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
 
-    // Save
-    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
-
-    expect(setProfileName).toHaveBeenCalledWith('Alice');
+    expect(screen.getByText('Your details')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    expect(setProfileName).not.toHaveBeenCalled();
   });
 });
