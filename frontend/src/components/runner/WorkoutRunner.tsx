@@ -709,7 +709,7 @@ export function WorkoutRunner() {
                 src={
                   currentExercise.animationUrl.includes('rapidapi-key')
                     ? currentExercise.animationUrl
-                    : `${currentExercise.animationUrl}?rapidapi-key=112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34`
+                    : `${currentExercise.animationUrl}${currentExercise.animationUrl.includes('?') ? '&' : '?'}rapidapi-key=112648333fmsh4983575ee18bf9ap13ecf2jsnc09b81349a34`
                 }
                 alt={`${currentExercise.exerciseName} demonstration`}
                 className="h-28 w-28 object-cover"
