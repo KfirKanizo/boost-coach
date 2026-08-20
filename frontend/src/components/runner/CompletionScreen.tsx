@@ -1,4 +1,5 @@
-import { Trophy, ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Trophy, ArrowLeft, Zap } from 'lucide-react';
 
 interface ExerciseSummary {
   name: string;
@@ -9,19 +10,59 @@ interface ExerciseSummary {
 
 interface CompletionScreenProps {
   exercises: ExerciseSummary[];
+  verifiedReps: number;
+  targetReps: number;
+  xpEarned: number;
   onReturn: () => void;
+}
+
+/**
+ * Count-up animation hook: increments from 0 → target over `duration` ms.
+ * Uses setTimeout for test-environment compatibility (rAF doesn't fire in jsdom).
+ */
+function useCountUp(target: number, duration = 1200): number {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (target <= 0) { setDisplay(0); return; }
+    const STEP = 16; // ~60fps
+    const steps = Math.ceil(duration / STEP);
+    let step = 0;
+
+    const id = setInterval(() => {
+      step += 1;
+      const progress = Math.min(step / steps, 1);
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(eased * target));
+      if (progress >= 1) clearInterval(id);
+    }, STEP);
+
+    return () => clearInterval(id);
+  }, [target, duration]);
+
+  return display;
 }
 
 /**
  * Workout-complete summary shown after the final set of the final exercise.
  *
- * Uses the same dark overlay as the other runner phases, with a neon
- * accent on the trophy and a clean exercise-by-exercise breakdown.
+ * Shows verified reps vs target, a count-up XP animation, and an
+ * exercise-by-exercise breakdown.
  */
-export function CompletionScreen({ exercises, onReturn }: CompletionScreenProps) {
+export function CompletionScreen({
+  exercises,
+  verifiedReps,
+  targetReps,
+  xpEarned,
+  onReturn,
+}: CompletionScreenProps) {
   const totalSets = exercises.reduce((sum, e) => sum + e.sets, 0);
   const totalReps = exercises.reduce((sum, e) => sum + e.sets * e.repsPerSet, 0);
   const hasDuration = exercises.some((e) => e.isDuration);
+  const targetHit = targetReps > 0 && verifiedReps >= targetReps;
+
+  const animatedXp = useCountUp(xpEarned);
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/85 p-8 text-center">
@@ -38,6 +79,32 @@ export function CompletionScreen({ exercises, onReturn }: CompletionScreenProps)
         {totalSets} sets &middot;{' '}
         {hasDuration ? `${totalReps}s total` : `${totalReps} total reps`}
       </p>
+
+      {/* XP Badge */}
+      <div className="mt-5 flex flex-col items-center gap-1">
+        <div className="flex items-center gap-2 rounded-full border border-neon/30 bg-neon/10 px-5 py-2.5">
+          <Zap size={18} className="text-neon" fill="currentColor" />
+          <span className="font-timer text-2xl font-black text-neon">
+            {animatedXp}
+          </span>
+          <span className="text-xs font-bold uppercase tracking-widest text-neon/70">
+            XP
+          </span>
+        </div>
+        {targetReps > 0 && (
+          <span className="mt-1 text-xs text-ash">
+            {verifiedReps} / {targetReps} verified reps
+            {targetHit && (
+              <span className="ml-1.5 font-bold text-neon">+50 target bonus!</span>
+            )}
+          </span>
+        )}
+        {xpEarned === 0 && (
+          <span className="mt-1 text-xs text-ash">
+            Complete reps to earn XP
+          </span>
+        )}
+      </div>
 
       {/* Exercise breakdown */}
       <div className="mt-6 w-full max-w-xs rounded-card border border-white/[0.06] bg-white/[0.03]">

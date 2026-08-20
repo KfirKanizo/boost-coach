@@ -36,6 +36,7 @@ export default function App() {
         <Route path="/" element={<AppShell />} />
         <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/builder" element={<WorkoutBuilderPage />} />
+        <Route path="/builder/:routine_id" element={<WorkoutBuilderPage />} />
         <Route path="/workout" element={<WorkoutRunner />} />
         <Route path="/studio/:boost_id" element={<StudioPage />} />
         <Route path="/exercise/:exercise_id" element={<ExerciseStudioPage />} />

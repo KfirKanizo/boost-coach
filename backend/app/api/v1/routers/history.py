@@ -1,6 +1,6 @@
 """Workout history and weekly stats endpoints.
 
-POST /api/v1/history/complete — log a completed workout session.
+POST /api/v1/history/complete — log a completed workout session + compute XP.
 GET  /api/v1/history/weekly-stats — return sessions this week + weekly goal.
 """
 
@@ -16,6 +16,7 @@ from app.schemas.history import (
     WeeklyStatsResponse,
     WorkoutCompleteRequest,
     WorkoutSessionResponse,
+    compute_xp,
 )
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -29,7 +30,9 @@ async def complete_workout(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> WorkoutSessionResponse:
-    """Log a completed workout session (single exercise or full flow)."""
+    """Log a completed workout session and return XP earned."""
+    xp = compute_xp(body.verified_reps, body.target_reps)
+
     session = WorkoutSession(
         user_id=user.id,
         session_type=body.session_type,
@@ -40,7 +43,10 @@ async def complete_workout(
     db.add(session)
     await db.commit()
     await db.refresh(session)
-    return WorkoutSessionResponse.model_validate(session)
+
+    resp = WorkoutSessionResponse.model_validate(session)
+    resp.xp_earned = xp
+    return resp
 
 
 @router.get("/weekly-stats", response_model=WeeklyStatsResponse)

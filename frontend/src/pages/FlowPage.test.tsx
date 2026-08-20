@@ -14,6 +14,7 @@ vi.mock('../api/client', () => ({
     getUserProfile: vi.fn(),
     getRoutines: vi.fn().mockResolvedValue([]),
     getWeeklyStats: vi.fn().mockResolvedValue({ sessions_this_week: 0, weekly_goal: 4 }),
+    deleteRoutine: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -32,6 +33,7 @@ function renderFlow() {
       <Routes>
         <Route path="/" element={<FlowPage />} />
         <Route path="/builder" element={<BuilderMarker />} />
+        <Route path="/builder/:routine_id" element={<BuilderMarker />} />
         <Route path="/studio/:boost_id" element={<StudioMarker />} />
       </Routes>
     </MemoryRouter>,
@@ -70,6 +72,8 @@ describe('FlowPage', () => {
     vi.mocked(api.getRoutines).mockResolvedValue([]);
     vi.mocked(api.getWeeklyStats).mockReset();
     vi.mocked(api.getWeeklyStats).mockResolvedValue({ sessions_this_week: 0, weekly_goal: 4 });
+    vi.mocked(api.deleteRoutine).mockReset();
+    vi.mocked(api.deleteRoutine).mockResolvedValue(undefined);
     vi.mocked(api.getUserProfile).mockResolvedValue({
       id: 'u-1',
       email: 'test@example.com',
@@ -326,5 +330,118 @@ describe('FlowPage', () => {
 
     expect(await screen.findByText('Rest Day!')).toBeInTheDocument();
     expect(screen.getByText(/pick a flow below/i)).toBeInTheDocument();
+  });
+
+  // --- Edit / Delete ---
+
+  it('shows 3-dot menu button on routine cards', async () => {
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+    mockRoutines([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [
+          { exercise_id: 'e-1', exercise_name: 'Plank', movement_pattern: 'core', sets: 3, reps: 1, rest_seconds: 30 },
+        ],
+        schedule_days: null,
+        created_at: '',
+      },
+    ]);
+
+    renderFlow();
+    await screen.findByText('Morning Core');
+
+    expect(screen.getByRole('button', { name: /options for morning core/i })).toBeInTheDocument();
+  });
+
+  it('opens edit/delete menu when 3-dot is clicked', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+    mockRoutines([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [],
+        schedule_days: null,
+        created_at: '',
+      },
+    ]);
+
+    renderFlow();
+    await screen.findByText('Morning Core');
+
+    await user.click(screen.getByRole('button', { name: /options for morning core/i }));
+
+    expect(screen.getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument();
+  });
+
+  it('navigates to builder with routine_id when Edit is clicked', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+    mockRoutines([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [],
+        schedule_days: null,
+        created_at: '',
+      },
+    ]);
+
+    renderFlow();
+    await screen.findByText('Morning Core');
+
+    await user.click(screen.getByRole('button', { name: /options for morning core/i }));
+    await user.click(screen.getByRole('button', { name: /^edit$/i }));
+
+    expect(await screen.findByText('Builder Page')).toBeInTheDocument();
+  });
+
+  it('shows delete confirmation when Delete is clicked', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+    mockRoutines([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [],
+        schedule_days: null,
+        created_at: '',
+      },
+    ]);
+
+    renderFlow();
+    await screen.findByText('Morning Core');
+
+    await user.click(screen.getByRole('button', { name: /options for morning core/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    expect(screen.getByRole('dialog', { name: /delete routine/i })).toBeInTheDocument();
+    expect(screen.getByText(/can't be undone/i)).toBeInTheDocument();
+  });
+
+  it('deletes routine when confirmed', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
+    mockRoutines([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [],
+        schedule_days: null,
+        created_at: '',
+      },
+    ]);
+
+    renderFlow();
+    await screen.findByText('Morning Core');
+
+    await user.click(screen.getByRole('button', { name: /options for morning core/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    expect(api.deleteRoutine).toHaveBeenCalledWith('r-1');
+    expect(await screen.findByText(/haven't built any flows yet/i)).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dumbbell, Plus, Search, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { api } from '../api/client';
 import type { Exercise } from '../types/boost';
@@ -175,6 +175,8 @@ function ExercisePickerSheet({
 
 export function WorkoutBuilderPage() {
   const navigate = useNavigate();
+  const { routine_id: editRoutineId } = useParams<{ routine_id?: string }>();
+  const isEditMode = Boolean(editRoutineId);
 
   const [routineName, setRoutineName] = useState('My Custom Flow');
   const [routineExercises, setRoutineExercises] = useState<RoutineExercise[]>([]);
@@ -207,6 +209,36 @@ export function WorkoutBuilderPage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // ── Load existing routine in edit mode ────────────────────────────
+  useEffect(() => {
+    if (!editRoutineId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const routines = await api.getRoutines();
+        const routine = routines.find((r) => r.id === editRoutineId);
+        if (cancelled || !routine) return;
+        setRoutineName(routine.name);
+        setRoutineExercises(
+          routine.exercises.map((ex) => ({
+            exerciseId: ex.exercise_id,
+            exerciseName: ex.exercise_name,
+            movementPattern: ex.movement_pattern,
+            sets: ex.sets,
+            reps: ex.reps,
+            restSeconds: ex.rest_seconds,
+            animationUrl: ex.animation_url,
+            instructions: ex.instructions,
+          })),
+        );
+        setScheduleDays(routine.schedule_days ?? []);
+      } catch {
+        showToast('Failed to load routine');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editRoutineId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -267,30 +299,37 @@ export function WorkoutBuilderPage() {
       return;
     }
 
+    const payload = {
+      name: routineName.trim() || 'My Custom Flow',
+      exercises: routineExercises.map((ex) => ({
+        exercise_id: ex.exerciseId,
+        exercise_name: ex.exerciseName,
+        movement_pattern: ex.movementPattern,
+        sets: ex.sets,
+        reps: ex.reps,
+        rest_seconds: ex.restSeconds,
+        animation_url: ex.animationUrl,
+        instructions: ex.instructions,
+      })),
+      schedule_days: scheduleDays.length > 0 ? scheduleDays : undefined,
+    };
+
     setSaving(true);
     try {
-      await api.createRoutine({
-        name: routineName.trim() || 'My Custom Flow',
-        exercises: routineExercises.map((ex) => ({
-          exercise_id: ex.exerciseId,
-          exercise_name: ex.exerciseName,
-          movement_pattern: ex.movementPattern,
-          sets: ex.sets,
-          reps: ex.reps,
-          rest_seconds: ex.restSeconds,
-          animation_url: ex.animationUrl,
-          instructions: ex.instructions,
-        })),
-        schedule_days: scheduleDays.length > 0 ? scheduleDays : undefined,
-      });
-      showToast('Routine saved!');
+      if (isEditMode && editRoutineId) {
+        await api.updateRoutine(editRoutineId, payload);
+        showToast('Routine updated!');
+      } else {
+        await api.createRoutine(payload);
+        showToast('Routine saved!');
+      }
       setTimeout(() => navigate('/'), 800);
     } catch {
       showToast('Failed to save — try again');
     } finally {
       setSaving(false);
     }
-  }, [routineName, routineExercises, scheduleDays, navigate, showToast]);
+  }, [routineName, routineExercises, scheduleDays, navigate, showToast, isEditMode, editRoutineId]);
 
   return (
     <div className="flex min-h-screen flex-col bg-ink pb-28">
@@ -306,7 +345,7 @@ export function WorkoutBuilderPage() {
             Cancel
           </button>
           <h1 className="font-display text-base font-bold text-paper">
-            Custom Builder
+            {isEditMode ? 'Edit Routine' : 'Custom Builder'}
           </h1>
           <div className="w-16" />
         </div>
@@ -422,7 +461,7 @@ export function WorkoutBuilderPage() {
             disabled={exercisesLoading || saving}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-neon py-4 text-base font-black uppercase tracking-widest text-ink shadow-neon-glow transition-all hover:shadow-neon-glow-strong active:scale-[0.97] disabled:opacity-40 disabled:shadow-none"
           >
-            {saving ? 'Saving…' : 'Save Routine'}
+            {saving ? 'Saving…' : isEditMode ? 'Update Routine' : 'Save Routine'}
           </button>
         </div>
       </div>

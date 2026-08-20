@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dumbbell, Loader2, Plus, RefreshCw, Play } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Dumbbell, Loader2, MoreVertical, Pencil, Play, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { BoostCard } from '../components/flow/BoostCard';
@@ -26,6 +26,24 @@ export function FlowPage() {
   const [routines, setRoutines] = useState<CustomRoutine[]>([]);
   const [selectedRoutine, setSelectedRoutine] = useState<CustomRoutine | null>(null);
   const [weeklySessions, setWeeklySessions] = useState<number | undefined>(undefined);
+
+  // ── 3-dot menu state ──────────────────────────────────────────────
+  const [menuRoutineId, setMenuRoutineId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuRoutineId) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuRoutineId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuRoutineId]);
 
   const todayDayIndex = new Date().getDay();
 
@@ -91,6 +109,31 @@ export function FlowPage() {
   const swapBoost = boosts.find((boost) => boost.id === swapBoostId);
 
   const canCreateMore = routines.length < MAX_ROUTINES;
+
+  // ── Edit routine: navigate to builder with routine ID ──────────────
+  const handleEditRoutine = useCallback(
+    (routineId: string) => {
+      setMenuRoutineId(null);
+      navigate(`/builder/${routineId}`);
+    },
+    [navigate],
+  );
+
+  // ── Delete routine ────────────────────────────────────────────────
+  const handleDeleteRoutine = useCallback(async () => {
+    if (!deleteConfirmId) return;
+    setDeleting(true);
+    try {
+      await api.deleteRoutine(deleteConfirmId);
+      setRoutines((prev) => prev.filter((r) => r.id !== deleteConfirmId));
+    } catch {
+      // Silent — best-effort
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmId(null);
+      setMenuRoutineId(null);
+    }
+  }, [deleteConfirmId]);
 
   // Routines scheduled for today
   const todaysRoutines = useMemo(
@@ -179,36 +222,80 @@ export function FlowPage() {
           {routines.map((routine) => {
             const isToday = routine.scheduleDays?.includes(todayDayIndex);
             return (
-              <button
-                key={routine.id}
-                type="button"
-                onClick={() => setSelectedRoutine(routine)}
-                className="group flex items-center gap-4 rounded-card bg-surface p-4 text-left transition-all hover:bg-white/[0.07] active:scale-[0.98]"
-              >
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-neon/10 text-neon transition-colors group-hover:bg-neon/15">
-                  <Play size={20} fill="currentColor" />
+              <div key={routine.id} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRoutine(routine)}
+                  className="group flex w-full items-center gap-4 rounded-card bg-surface p-4 text-left transition-all hover:bg-white/[0.07] active:scale-[0.98]"
+                >
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-neon/10 text-neon transition-colors group-hover:bg-neon/15">
+                    <Play size={20} fill="currentColor" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold text-paper">
+                      {routine.name}
+                    </span>
+                    <span className="text-xs text-ash">
+                      {routine.exercises.length}{' '}
+                      {routine.exercises.length === 1 ? 'exercise' : 'exercises'}
+                      {routine.scheduleDays && routine.scheduleDays.length > 0 && (
+                        <>
+                          {' \u00b7 '}
+                          {routine.scheduleDays.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ')}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  {isToday && (
+                    <span className="flex-shrink-0 rounded-full bg-neon/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neon">
+                      Today
+                    </span>
+                  )}
+                </button>
+
+                {/* 3-dot menu */}
+                <div className="absolute right-3 top-3" ref={menuRoutineId === routine.id ? menuRef : undefined}>
+                  <button
+                    type="button"
+                    aria-label={`Options for ${routine.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuRoutineId(menuRoutineId === routine.id ? null : routine.id);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-ash transition-colors hover:bg-white/10 hover:text-paper"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+
+                  {menuRoutineId === routine.id && (
+                    <div className="absolute right-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-xl border border-white/10 bg-surface shadow-lg">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditRoutine(routine.id);
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-white/[0.07]"
+                      >
+                        <Pencil size={14} />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuRoutineId(null);
+                          setDeleteConfirmId(routine.id);
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-crimson transition-colors hover:bg-crimson/10"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-paper">
-                    {routine.name}
-                  </span>
-                  <span className="text-xs text-ash">
-                    {routine.exercises.length}{' '}
-                    {routine.exercises.length === 1 ? 'exercise' : 'exercises'}
-                    {routine.scheduleDays && routine.scheduleDays.length > 0 && (
-                      <>
-                        {' \u00b7 '}
-                        {routine.scheduleDays.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ')}
-                      </>
-                    )}
-                  </span>
-                </div>
-                {isToday && (
-                  <span className="flex-shrink-0 rounded-full bg-neon/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neon">
-                    Today
-                  </span>
-                )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -290,6 +377,46 @@ export function FlowPage() {
           onStart={handleStartWorkout}
           onClose={() => setSelectedRoutine(null)}
         />
+      )}
+
+      {/* ── Delete confirmation dialog ─────────────────────────────── */}
+      {deleteConfirmId && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete routine"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-8 backdrop-blur-sm"
+          onClick={() => setDeleteConfirmId(null)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-white/10 bg-surface/90 p-6 text-center backdrop-blur-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display text-lg font-bold text-paper">
+              Delete routine?
+            </h3>
+            <p className="mt-2 text-sm text-ash">
+              This can&apos;t be undone. The routine and all its exercises will be removed.
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => void handleDeleteRoutine()}
+                className="w-full rounded-xl border border-crimson/40 bg-crimson/15 py-3 text-sm font-bold text-crimson transition-colors hover:bg-crimson/25 active:scale-[0.98] disabled:opacity-40"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="w-full rounded-xl bg-white/5 py-3 text-sm font-bold text-paper transition-colors hover:bg-white/10 active:scale-[0.98]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

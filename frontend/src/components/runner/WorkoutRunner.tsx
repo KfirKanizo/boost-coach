@@ -105,6 +105,7 @@ export function WorkoutRunner() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [xpEarned, setXpEarned] = useState(0);
 
   // Camera / vision state
   const [landmarks, setLandmarks] = useState<LandmarkPoint[] | null>(null);
@@ -128,6 +129,7 @@ export function WorkoutRunner() {
   const partialRepsRef = useRef(0); // accumulated reps at quit time
   const partialDurationRef = useRef(0); // accumulated duration at quit time
   const partialExerciseCountRef = useRef(0); // number of exercises with any work done
+  const verifiedRepsRef = useRef(0); // vision-verified reps accumulated across sets
 
   // ── Derived values ─────────────────────────────────────────────────
   const currentExercise = sessionExercises[exerciseIndex];
@@ -368,6 +370,14 @@ export function WorkoutRunner() {
       : localRepCount >= targetReps;
     if (!targetReached) return;
 
+    // Accumulate verified reps for this set
+    if (!isDurationExercise) {
+      verifiedRepsRef.current += localRepCount;
+    } else {
+      // Duration exercises: count achieved seconds as "reps" for XP
+      verifiedRepsRef.current += holdElapsed;
+    }
+
     // Target hit! Determine next state.
     if (!isLastSet) {
       beginRest();
@@ -488,8 +498,10 @@ export function WorkoutRunner() {
 
       if (isDurationExercise) {
         duration += exerciseDuration;
+        verifiedRepsRef.current += currentSetDuration;
       } else {
         reps += exerciseReps;
+        verifiedRepsRef.current += currentSetReps;
       }
     }
 
@@ -548,11 +560,23 @@ export function WorkoutRunner() {
       exerciseCount = sessionExercises.length;
     }
 
+    // Calculate total target reps for XP bonus
+    let targetRepsTotal = 0;
+    for (const ex of sessionExercises) {
+      if (ex.movementPattern !== 'core') {
+        targetRepsTotal += ex.reps * ex.sets;
+      }
+    }
+
     void api.completeWorkout({
       session_type: isSingle ? 'single' : 'flow',
       total_reps: totalReps,
       total_duration_seconds: totalDurationSec,
       exercise_count: exerciseCount,
+      verified_reps: verifiedRepsRef.current,
+      target_reps: targetRepsTotal,
+    }).then((session) => {
+      if (session?.xp_earned) setXpEarned(session.xp_earned);
     }).catch(() => {
       // Silent — completion is best-effort; the user sees the screen either way.
     });
@@ -912,7 +936,16 @@ export function WorkoutRunner() {
 
       {/* ── Completion screen ─────────────────────────────────────────── */}
       {phase === 'completed' && (
-        <CompletionScreen exercises={completedExercises} onReturn={handleReturn} />
+        <CompletionScreen
+          exercises={completedExercises}
+          verifiedReps={verifiedRepsRef.current}
+          targetReps={sessionExercises.reduce(
+            (sum, ex) => sum + (ex.movementPattern !== 'core' ? ex.reps * ex.sets : 0),
+            0,
+          )}
+          xpEarned={xpEarned}
+          onReturn={handleReturn}
+        />
       )}
     </div>
   );

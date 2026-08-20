@@ -48,6 +48,8 @@ export interface WorkoutCompletePayload {
   total_reps: number;
   total_duration_seconds: number;
   exercise_count: number;
+  verified_reps: number;
+  target_reps: number;
 }
 
 export interface WorkoutSessionItem {
@@ -57,6 +59,7 @@ export interface WorkoutSessionItem {
   total_duration_seconds: number;
   exercise_count: number;
   created_at: string;
+  xp_earned: number;
 }
 
 export interface WeeklyStats {

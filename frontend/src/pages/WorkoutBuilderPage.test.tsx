@@ -13,7 +13,9 @@ import { WorkoutBuilderPage } from './WorkoutBuilderPage';
 vi.mock('../api/client', () => ({
   api: {
     getExercises: vi.fn(),
+    getRoutines: vi.fn().mockResolvedValue([]),
     createRoutine: vi.fn().mockResolvedValue({ id: 'new-1', name: 'My Custom Flow', exercises: [], schedule_days: null, created_at: '' }),
+    updateRoutine: vi.fn().mockResolvedValue({ id: 'r-1', name: 'Updated', exercises: [], schedule_days: null, created_at: '' }),
   },
 }));
 
@@ -36,11 +38,13 @@ const SAMPLE: Exercise[] = [
   makeExercise({ id: 'e-4', name_translations: { en: 'Deadlift' }, movement_pattern: 'hinge' }),
 ];
 
-function renderBuilder() {
+function renderBuilder(routineId?: string) {
+  const entries = routineId ? [`/builder/${routineId}`] : ['/builder'];
   return render(
-    <MemoryRouter initialEntries={['/builder']}>
+    <MemoryRouter initialEntries={entries}>
       <Routes>
         <Route path="/builder" element={<WorkoutBuilderPage />} />
+        <Route path="/builder/:routine_id" element={<WorkoutBuilderPage />} />
         <Route path="/" element={<div>Flow Page</div>} />
       </Routes>
     </MemoryRouter>,
@@ -55,9 +59,15 @@ describe('WorkoutBuilderPage', () => {
   beforeEach(() => {
     vi.mocked(api.getExercises).mockReset();
     vi.mocked(api.getExercises).mockResolvedValue(SAMPLE);
+    vi.mocked(api.getRoutines).mockReset();
+    vi.mocked(api.getRoutines).mockResolvedValue([]);
     vi.mocked(api.createRoutine).mockReset();
     vi.mocked(api.createRoutine).mockResolvedValue({
       id: 'new-1', name: 'My Custom Flow', exercises: [], schedule_days: null, created_at: '',
+    });
+    vi.mocked(api.updateRoutine).mockReset();
+    vi.mocked(api.updateRoutine).mockResolvedValue({
+      id: 'r-1', name: 'Updated', exercises: [], schedule_days: null, created_at: '',
     });
   });
 
@@ -337,5 +347,89 @@ describe('WorkoutBuilderPage', () => {
     await user.click(screen.getByRole('button', { name: /cancel/i }));
 
     expect(await screen.findByText('Flow Page')).toBeInTheDocument();
+  });
+
+  // --- Edit mode ---
+
+  it('shows Edit Routine title in edit mode', async () => {
+    vi.mocked(api.getRoutines).mockResolvedValue([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [
+          { exercise_id: 'e-1', exercise_name: 'Squat', movement_pattern: 'squat', sets: 3, reps: 10, rest_seconds: 60 },
+        ],
+        schedule_days: [1, 3],
+        created_at: '',
+      },
+    ]);
+
+    renderBuilder('r-1');
+
+    expect(await screen.findByText('Edit Routine')).toBeInTheDocument();
+  });
+
+  it('loads existing routine data in edit mode', async () => {
+    vi.mocked(api.getRoutines).mockResolvedValue([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [
+          { exercise_id: 'e-1', exercise_name: 'Squat', movement_pattern: 'squat', sets: 4, reps: 12, rest_seconds: 90 },
+        ],
+        schedule_days: [1, 3],
+        created_at: '',
+      },
+    ]);
+
+    renderBuilder('r-1');
+
+    expect(await screen.findByDisplayValue('Morning Core')).toBeInTheDocument();
+    expect(screen.getByText('Squat')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument(); // sets
+    expect(screen.getByText('12')).toBeInTheDocument(); // reps
+    expect(screen.getByText('90s')).toBeInTheDocument(); // rest
+  });
+
+  it('calls updateRoutine instead of createRoutine in edit mode', async () => {
+    vi.mocked(api.getRoutines).mockResolvedValue([
+      {
+        id: 'r-1',
+        name: 'Morning Core',
+        exercises: [
+          { exercise_id: 'e-1', exercise_name: 'Squat', movement_pattern: 'squat', sets: 3, reps: 10, rest_seconds: 60 },
+        ],
+        schedule_days: null,
+        created_at: '',
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderBuilder('r-1');
+
+    await screen.findByText('Edit Routine');
+
+    await user.click(screen.getByRole('button', { name: /update routine/i }));
+
+    expect(api.updateRoutine).toHaveBeenCalledWith('r-1', expect.objectContaining({
+      name: 'Morning Core',
+    }));
+    expect(api.createRoutine).not.toHaveBeenCalled();
+  });
+
+  it('shows Update Routine button text in edit mode', async () => {
+    vi.mocked(api.getRoutines).mockResolvedValue([
+      {
+        id: 'r-1',
+        name: 'Test',
+        exercises: [],
+        schedule_days: null,
+        created_at: '',
+      },
+    ]);
+
+    renderBuilder('r-1');
+
+    expect(await screen.findByText('Update Routine')).toBeInTheDocument();
   });
 });

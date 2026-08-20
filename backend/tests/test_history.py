@@ -30,6 +30,8 @@ async def test_complete_workout_session(async_client, db_session) -> None:
             "total_reps": 60,
             "total_duration_seconds": 300,
             "exercise_count": 3,
+            "verified_reps": 60,
+            "target_reps": 60,
         },
     )
     assert resp.status_code == 201
@@ -38,6 +40,7 @@ async def test_complete_workout_session(async_client, db_session) -> None:
     assert body["total_reps"] == 60
     assert body["total_duration_seconds"] == 300
     assert body["exercise_count"] == 3
+    assert body["xp_earned"] == 650  # 60 * 10 + 50 bonus
     assert "id" in body
 
 
@@ -53,11 +56,54 @@ async def test_complete_single_exercise(async_client, db_session) -> None:
             "total_reps": 30,
             "total_duration_seconds": 0,
             "exercise_count": 1,
+            "verified_reps": 30,
+            "target_reps": 10,
         },
     )
     assert resp.status_code == 201
     assert resp.json()["session_type"] == "single"
     assert resp.json()["total_reps"] == 30
+    assert resp.json()["xp_earned"] == 350  # 30 * 10 + 50 bonus
+
+
+async def test_xp_zero_when_no_verified_reps(async_client, db_session) -> None:
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    resp = await async_client.post(
+        "/api/v1/history/complete",
+        headers=headers,
+        json={
+            "session_type": "single",
+            "total_reps": 0,
+            "total_duration_seconds": 60,
+            "exercise_count": 1,
+            "verified_reps": 0,
+            "target_reps": 10,
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["xp_earned"] == 0
+
+
+async def test_xp_no_bonus_when_below_target(async_client, db_session) -> None:
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    resp = await async_client.post(
+        "/api/v1/history/complete",
+        headers=headers,
+        json={
+            "session_type": "single",
+            "total_reps": 5,
+            "total_duration_seconds": 0,
+            "exercise_count": 1,
+            "verified_reps": 5,
+            "target_reps": 10,
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["xp_earned"] == 50  # 5 * 10, no bonus
 
 
 async def test_weekly_stats_empty(async_client, db_session) -> None:
@@ -84,6 +130,8 @@ async def test_weekly_stats_counts_this_week(async_client, db_session) -> None:
                 "total_reps": 10,
                 "total_duration_seconds": 0,
                 "exercise_count": 1,
+                "verified_reps": 10,
+                "target_reps": 10,
             },
         )
         assert resp.status_code == 201
