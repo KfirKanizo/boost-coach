@@ -12,6 +12,7 @@ Usage (inside the API container):
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 
@@ -93,17 +94,38 @@ async def run() -> None:
         delete_ids: list[str] = []
 
         for r in rows:
-            name_en = (r["name_translations"] or {}).get("en", "").lower()
-            has_animation = bool(r["animation_url"] and len(r["animation_url"]) > 0)
-            has_instructions = bool(r["instructions"] and len(r["instructions"]) > 0)
+            raw = r["name_translations"]
+            # asyncpg may return JSONB as a dict or as a JSON string
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            name_en = (raw or {}).get("en", "").strip().lower()
+            has_animation = bool(r["animation_url"] and len(str(r["animation_url"])) > 0)
+            has_instructions = bool(r["instructions"] and len(str(r["instructions"])) > 0)
 
-            if name_en in TARGET_SET and has_animation and has_instructions:
+            matched = name_en in TARGET_SET
+            if name_en and not matched:
+                # Show first few unmatched names for debugging
+                if len(delete_ids) < 5:
+                    print(f"  SKIP (no match): '{name_en}'")
+
+            if matched and has_animation and has_instructions:
                 keep_ids.append(str(r["id"]))
             else:
                 delete_ids.append(str(r["id"]))
 
         print(f"Keeping:  {len(keep_ids)} exercises")
         print(f"Deleting: {len(delete_ids)} exercises")
+
+        # Show kept exercise names for verification
+        if keep_ids:
+            keep_csv = ", ".join(f"'{i}'" for i in keep_ids)
+            kept_names = (await conn.execute(text(
+                f"SELECT name_translations->>'en' AS name FROM exercises "
+                f"WHERE id::text IN ({keep_csv}) ORDER BY name"
+            ))).fetchall()
+            print("Kept exercises:")
+            for (name,) in kept_names:
+                print(f"  - {name}")
 
         if not delete_ids:
             print("Nothing to delete — done.")
