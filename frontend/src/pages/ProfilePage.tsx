@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { UserProfile, UserProfileUpdateRequest } from '../api/client';
 import { clearAuthToken } from '../services/tokenStorage';
+import { GamificationDashboard } from '../components/profile/GamificationDashboard';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -216,9 +217,6 @@ export function ProfilePage() {
   const bmi = useMemo(() => calcBmi(weight, height), [weight, height]);
   const cat = useMemo(() => bmiCategory(bmi), [bmi]);
 
-  const streak = profile?.current_streak ?? 0;
-  const streakPct = Math.min(100, streak * 10);
-
   return (
     <div className="px-4 pb-28 pt-6">
       {/* Header */}
@@ -285,24 +283,8 @@ export function ProfilePage() {
       {/* Profile content */}
       {!loading && !error && profile && (
         <>
-          {/* Streak card */}
-          <section className="mb-6 flex items-center justify-between rounded-card bg-surface p-6">
-            <div className="flex items-center gap-3">
-              <Zap size={24} className="text-ember" fill="currentColor" />
-              <div>
-                <p className="font-display text-3xl font-bold">{streak}</p>
-                <p className="text-xs uppercase tracking-widest text-ash">
-                  Day streak
-                </p>
-              </div>
-            </div>
-            <div className="h-2 w-32 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-ember transition-all"
-                style={{ width: `${streakPct}%` }}
-              />
-            </div>
-          </section>
+          {/* Gamification Dashboard */}
+          <GamificationDashboard />
 
           {editing ? (
             /* ---- Edit mode ---- */

@@ -2,6 +2,7 @@
 
 POST /api/v1/history/complete
 GET  /api/v1/history/weekly-stats
+GET  /api/v1/history/stats
 """
 
 from app.models import User
@@ -41,6 +42,7 @@ async def test_complete_workout_session(async_client, db_session) -> None:
     assert body["total_duration_seconds"] == 300
     assert body["exercise_count"] == 3
     assert body["xp_earned"] == 650  # 60 * 10 + 50 bonus
+    assert body["verified_reps"] == 60
     assert "id" in body
 
 
@@ -153,4 +155,54 @@ async def test_complete_requires_auth(async_client) -> None:
 
 async def test_weekly_stats_requires_auth(async_client) -> None:
     resp = await async_client.get("/api/v1/history/weekly-stats")
+    assert resp.status_code == 401
+
+
+async def test_gamification_stats_empty(async_client, db_session) -> None:
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    resp = await async_client.get("/api/v1/history/stats", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_xp"] == 0
+    assert body["level"] == 1
+    assert body["total_workouts"] == 0
+    assert body["sessions_this_week"] == 0
+    assert body["activity_days"] == []
+
+
+async def test_gamification_stats_after_workouts(async_client, db_session) -> None:
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    # Complete 2 workouts
+    for _ in range(2):
+        await async_client.post(
+            "/api/v1/history/complete",
+            headers=headers,
+            json={
+                "session_type": "single",
+                "total_reps": 30,
+                "total_duration_seconds": 120,
+                "exercise_count": 1,
+                "verified_reps": 30,
+                "target_reps": 30,
+            },
+        )
+
+    resp = await async_client.get("/api/v1/history/stats", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_xp"] == 700  # 2 * (30*10 + 50)
+    assert body["level"] >= 2
+    assert body["total_workouts"] == 2
+    assert body["total_reps"] == 60
+    assert body["total_verified_reps"] == 60
+    assert body["sessions_this_week"] == 2
+    assert len(body["activity_days"]) >= 1
+
+
+async def test_gamification_stats_requires_auth(async_client) -> None:
+    resp = await async_client.get("/api/v1/history/stats")
     assert resp.status_code == 401

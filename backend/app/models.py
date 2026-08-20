@@ -186,6 +186,8 @@ class WorkoutSession(Base):
     total_reps: Mapped[int] = mapped_column(Integer, default=0)
     total_duration_seconds: Mapped[int] = mapped_column(Integer, default=0)
     exercise_count: Mapped[int] = mapped_column(Integer, default=0)
+    verified_reps: Mapped[int] = mapped_column(Integer, default=0)
+    xp_earned: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )

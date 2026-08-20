@@ -67,6 +67,20 @@ export interface WeeklyStats {
   weekly_goal: number;
 }
 
+export interface GamificationStats {
+  total_xp: number;
+  level: number;
+  xp_current_level: number;
+  xp_next_level: number;
+  total_workouts: number;
+  total_reps: number;
+  total_verified_reps: number;
+  current_streak: number;
+  weekly_goal: number;
+  sessions_this_week: number;
+  activity_days: string[];
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
@@ -352,5 +366,10 @@ export const api = {
   /** GET /history/weekly-stats — sessions this week + weekly goal. */
   getWeeklyStats(): Promise<WeeklyStats> {
     return request<WeeklyStats>('/history/weekly-stats');
+  },
+
+  /** GET /history/stats — aggregated gamification stats for the dashboard. */
+  getGamificationStats(): Promise<GamificationStats> {
+    return request<GamificationStats>('/history/stats');
   },
 };

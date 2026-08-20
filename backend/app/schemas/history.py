@@ -1,6 +1,7 @@
 """Workout history / completion request/response schemas."""
 
-from datetime import datetime
+import math
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # ── XP constants (shared with scoring logic) ────────────────────────────
 XP_PER_REP = 10
 XP_TARGET_BONUS = 50
+MAX_LEVEL = 50
 
 
 def compute_xp(verified_reps: int, target_reps: int) -> int:
@@ -18,6 +20,20 @@ def compute_xp(verified_reps: int, target_reps: int) -> int:
     base = verified_reps * XP_PER_REP
     bonus = XP_TARGET_BONUS if verified_reps >= target_reps else 0
     return base + bonus
+
+
+def compute_level(total_xp: int) -> int:
+    """Derive the user's level from their cumulative XP.
+
+    Formula: level = floor(sqrt(total_xp / 100)) + 1, capped at MAX_LEVEL.
+    Level 1 requires 0 XP, level 2 requires 100, level 3 requires 400, etc.
+    """
+    return min(MAX_LEVEL, int(math.sqrt(total_xp / 100)) + 1)
+
+
+def xp_for_level(level: int) -> int:
+    """Total XP required to reach a given level."""
+    return (level - 1) ** 2 * 100
 
 
 class WorkoutCompleteRequest(BaseModel):
@@ -43,10 +59,25 @@ class WorkoutSessionResponse(BaseModel):
     total_reps: int
     total_duration_seconds: int
     exercise_count: int
-    created_at: datetime
+    verified_reps: int = 0
     xp_earned: int = 0
+    created_at: datetime
 
 
 class WeeklyStatsResponse(BaseModel):
     sessions_this_week: int
     weekly_goal: int
+
+
+class GamificationStatsResponse(BaseModel):
+    total_xp: int
+    level: int
+    xp_current_level: int
+    xp_next_level: int
+    total_workouts: int
+    total_reps: int
+    total_verified_reps: int
+    current_streak: int
+    weekly_goal: int
+    sessions_this_week: int
+    activity_days: list[str]
