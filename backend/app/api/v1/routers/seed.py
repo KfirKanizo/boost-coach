@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import urllib.parse
 from typing import Any
 
 import requests
@@ -184,88 +185,71 @@ async def seed_exercises(
     _admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> SeedResult:
-    """Fetch exercises from ExerciseDB and upsert only the curated targets.
+    """Fetch each target exercise by name from ExerciseDB and upsert.
 
-    Paginates through the full catalog (limit=100 per page) with a
-    rate-limit delay, then filters down to the ~50 target exercises.
+    Instead of paginating through the full catalog (which the free tier
+    throttles to 10 items), we hit the ``/exercises/name/{name}``
+    endpoint for each of the 50 target exercises.  A 1.5 s delay between
+    calls avoids 429 rate-limit errors.
     """
     headers = {
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
     }
 
-    PAGE_SIZE = 100
-    all_exercises: list[dict[str, Any]] = []
-    offset = 0
-
-    # ── Paginated fetch ────────────────────────────────────────────────
-    while True:
-        try:
-            resp = await asyncio.to_thread(
-                requests.get,
-                EXERCISEDB_API_URL,
-                headers=headers,
-                params={"limit": PAGE_SIZE, "offset": offset},
-                timeout=30,
-            )
-            resp.raise_for_status()
-        except requests.RequestException as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Failed to reach ExerciseDB at offset {offset}: {exc}",
-            )
-
-        page: list[dict[str, Any]] = resp.json()
-        if not page:
-            break
-
-        all_exercises.extend(page)
-        offset += PAGE_SIZE
-
-        # Break early if we got fewer items than requested (last page)
-        if len(page) < PAGE_SIZE:
-            break
-
-        # Rate-limit: pause between pages
-        await asyncio.sleep(1.5)
-
-    # ── Filter to target exercises ─────────────────────────────────────
     inserted = 0
     updated = 0
     skipped = 0
     matched = 0
+    not_found: list[str] = []
 
-    for item in all_exercises:
-        raw_name = item.get("name", "").strip()
-        if not raw_name:
+    # ── Sniper fetch: one request per target name ──────────────────────
+    for target_name in TARGET_EXERCISE_NAMES:
+        encoded = urllib.parse.quote(target_name)
+        url = f"{EXERCISEDB_API_URL}/name/{encoded}"
+
+        try:
+            resp = await asyncio.to_thread(
+                requests.get,
+                url,
+                headers=headers,
+                params={"limit": 10},
+                timeout=30,
+            )
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            print(f"  ERROR fetching '{target_name}': {exc}")
+            not_found.append(target_name)
+            await asyncio.sleep(1.5)
             continue
 
-        normalized = _normalize(raw_name)
-        target_name = _TARGET_NORMALIZED.get(normalized)
-        if not target_name:
+        results: list[dict[str, Any]] = resp.json()
+        if not results:
+            print(f"  NOT FOUND: {target_name}")
+            not_found.append(target_name)
+            await asyncio.sleep(1.5)
             continue
+
+        # Find the best match: prefer exact normalised name match,
+        # otherwise take the first result.
+        item = results[0]  # default to first
+        for r in results:
+            if _normalize(r.get("name", "")) == _normalize(target_name):
+                item = r
+                break
 
         matched += 1
+        print(f"Fetched: {target_name}")
 
-        # Use the canonical Title Case name from our target list
-        name = target_name
-
-        # Check if exercise already exists (by normalised name)
+        # Upsert into DB
         existing = await db.scalar(
             select(Exercise).where(
-                Exercise.name_translations["en"].astext.op('->>')('en') == name  # noqa: E501
+                Exercise.name_translations["en"].astext == target_name
             )
         )
-        # Fallback: also check direct text match
-        if existing is None:
-            existing = await db.scalar(
-                select(Exercise).where(
-                    Exercise.name_translations["en"].astext == name
-                )
-            )
 
-        movement = _classify_movement(name)
-        boost_type = _classify_boost_type(name)
+        movement = _classify_movement(target_name)
+        boost_type = _classify_boost_type(target_name)
         equipment = _map_equipment(item.get("equipment", ""))
         target = _map_target(item.get("bodyPart", ""))
         instructions = item.get("instructions", [])
@@ -285,30 +269,38 @@ async def seed_exercises(
             if instructions and existing.instructions != instructions:
                 existing.instructions = instructions
                 changed = True
-            if name and (existing.name_translations or {}).get("en") != name:
-                existing.name_translations = {"en": name}
+            if target_name and (existing.name_translations or {}).get("en") != target_name:
+                existing.name_translations = {"en": target_name}
                 changed = True
             if changed:
                 updated += 1
             else:
                 skipped += 1
-            continue
+        else:
+            exercise = Exercise(
+                name_translations={"en": target_name},
+                primary_muscle=target,
+                movement_pattern=movement,
+                equipment_required=equipment,
+                boost_type=boost_type,
+                animation_url=animation_url or None,
+                instructions=instructions or None,
+            )
+            db.add(exercise)
+            inserted += 1
 
-        exercise = Exercise(
-            name_translations={"en": name},
-            primary_muscle=target,
-            movement_pattern=movement,
-            equipment_required=equipment,
-            boost_type=boost_type,
-            animation_url=animation_url or None,
-            instructions=instructions or None,
-        )
-        db.add(exercise)
-        inserted += 1
+        # Rate-limit: pause between API calls
+        await asyncio.sleep(1.5)
 
     await db.commit()
+
+    if not_found:
+        print(f"\nNot found in ExerciseDB ({len(not_found)}):")
+        for name in not_found:
+            print(f"  - {name}")
+
     return SeedResult(
-        fetched=len(all_exercises),
+        fetched=matched + len(not_found),
         matched=matched,
         inserted=inserted,
         updated=updated,
