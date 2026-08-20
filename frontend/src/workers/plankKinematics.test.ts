@@ -183,7 +183,7 @@ describe('analyzePlankFrame state machine', () => {
 
   it('reports hip_sag warning when hip drops during a straight-ish plank', () => {
     // Use a pose that has a straight-ish angle but sagging deviation.
-    // We need an angle >= 165° but with hip sagging.
+    // We need an angle >= 155° but with hip sagging.
     // shoulder(0.1, 0.4), hip(0.5, 0.47), ankle(0.9, 0.4)
     // The hip is slightly below the line but the angle is still close to 180.
     const slightSag = pose33({

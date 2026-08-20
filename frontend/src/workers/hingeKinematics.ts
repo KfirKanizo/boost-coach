@@ -39,9 +39,12 @@ export const HINGE_LANDMARKS = {
  *
  * Standing upright → shoulder–hip–knee ≈ 180°.
  * Hinged forward (bottom of deadlift) → shoulder–hip–knee ≈ 80–120°.
+ *
+ * Relaxed to ~80 % of full ROM so that regular users can complete reps
+ * without needing textbook-perfect depth or lockout.
  */
-export const HINGE_BOTTOM_DEG = 100;
-export const HINGE_STAND_DEG = 160;
+export const HINGE_BOTTOM_DEG = 115;     // was 100 — 80 % depth counts
+export const HINGE_STAND_DEG = 160;       // kept — near-lockout already generous
 
 /**
  * Perpendicular deviation threshold for back-round detection.

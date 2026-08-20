@@ -32,9 +32,12 @@ export const LANDMARKS = {
 /**
  * Angle thresholds (degrees) for the squat state machine.
  * Hysteresis between the two avoids jitter around a single cutoff.
+ *
+ * Relaxed to ~80 % of full ROM so that regular users can complete reps
+ * without needing textbook-perfect depth or lockout.
  */
-export const STAND_THRESHOLD_DEG = 160;
-export const SQUAT_THRESHOLD_DEG = 100;
+export const STAND_THRESHOLD_DEG = 150;   // was 160 — a near-lockout counts
+export const SQUAT_THRESHOLD_DEG = 110;   // was 100 — 80 % depth counts
 
 /** Max normalized lateral knee deviation (from the hip–ankle line) that is tolerated. */
 const VALGUS_THRESHOLD = 0.3;

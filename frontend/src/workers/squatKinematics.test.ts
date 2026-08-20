@@ -8,6 +8,7 @@ import {
   createInitialSquatState,
   detectKneeValgus,
   LANDMARKS,
+  SQUAT_THRESHOLD_DEG,
 } from './squatKinematics';
 
 const lm = (
@@ -41,7 +42,7 @@ const STANDING = pose33({
   [LANDMARKS.rightAnkle]: lm(0.58, 1.0),
 });
 
-/** Deep squat: knees ~74° (well past the 100° flex threshold), tracking over the toes. */
+/** Deep squat: knees ~74° (well past the 110° flex threshold), tracking over the toes. */
 const SQUAT = pose33({
   [LANDMARKS.leftHip]: lm(0.35, 0.72),
   [LANDMARKS.rightHip]: lm(0.65, 0.72),
@@ -76,8 +77,8 @@ describe('computeKneeAngles', () => {
   it('measures a deep squat well under the flex threshold', () => {
     const angles = computeKneeAngles(SQUAT);
     expect(angles).not.toBeNull();
-    expect(angles?.left).toBeLessThan(100);
-    expect(angles?.right).toBeLessThan(100);
+    expect(angles?.left).toBeLessThan(SQUAT_THRESHOLD_DEG);
+    expect(angles?.right).toBeLessThan(SQUAT_THRESHOLD_DEG);
   });
 
   it('returns null when key landmarks are not visible', () => {

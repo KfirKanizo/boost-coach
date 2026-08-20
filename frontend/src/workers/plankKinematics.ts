@@ -37,8 +37,9 @@ export const PLANK_LANDMARKS = {
  *
  * The shoulder–hip–ankle angle should be ≈180° for a straight plank.
  * We use a generous window around 180° to allow for natural body sway.
+ * Relaxed to ~80 % of full ROM so that minor hip sag/pike still counts.
  */
-export const STRAIGHT_THRESHOLD_DEG = 165;
+export const STRAIGHT_THRESHOLD_DEG = 155;  // was 165 — wider tolerance
 
 /**
  * Perpendicular deviation thresholds (normalised by the shoulder–ankle line

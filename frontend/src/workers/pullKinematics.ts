@@ -38,14 +38,14 @@ export const PULL_LANDMARKS = {
 /**
  * Angle thresholds (degrees) for the pull state machine.
  *
- * Arms extended → straight line at the elbow (> 160°).
- * Arms fully flexed → elbow folded past 90° (peak contraction).
+ * Arms extended → straight line at the elbow (> 150°).
+ * Arms fully flexed → elbow folded past 105° (peak contraction).
  *
- * Same thresholds as push-up: the elbow joint is the same, just the
- * direction of the force vector differs.
+ * Relaxed to ~80 % of full ROM so that regular users can complete reps
+ * without needing textbook-perfect lockout or peak contraction.
  */
-export const EXTEND_THRESHOLD_DEG = 160;
-export const FLEX_THRESHOLD_DEG = 90;
+export const EXTEND_THRESHOLD_DEG = 150;  // was 160 — near-lockout counts
+export const FLEX_THRESHOLD_DEG = 105;    // was 90  — 80 % contraction counts
 
 export interface PullState {
   phase: ExercisePhase;

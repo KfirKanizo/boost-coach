@@ -84,13 +84,13 @@ describe('analyzePullFrame state machine', () => {
     expect(warmup.repCount).toBe(0);
     state = warmup.nextState;
 
-    // Curl up: elbows flex past 90°
+    // Curl up: elbows flex past 105°
     const curlUp = analyzePullFrame(ARMS_FLEXED, state);
     expect(curlUp.phase).toBe('ascending');
     expect(curlUp.repCount).toBe(0);
     state = curlUp.nextState;
 
-    // Lower: elbows extend past 160° — rep counted
+    // Lower: elbows extend past 150° — rep counted
     const lowerDown = analyzePullFrame(ARMS_EXTENDED, state);
     expect(lowerDown.phase).toBe('descending');
     expect(lowerDown.repCount).toBe(1);

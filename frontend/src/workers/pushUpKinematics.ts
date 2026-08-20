@@ -33,11 +33,14 @@ export const PUSH_UP_LANDMARKS = {
 
 /**
  * Angle thresholds (degrees) for the push-up state machine.
- * Arms extended → straight line at the elbow (> 160°).
- * Arms bent → elbow folded past 90°.
+ * Arms extended → straight line at the elbow (> 150°).
+ * Arms bent → elbow folded past 105°.
+ *
+ * Relaxed to ~80 % of full ROM so that regular users can complete reps
+ * without needing textbook-perfect lockout or depth.
  */
-export const EXTEND_THRESHOLD_DEG = 160;
-export const BEND_THRESHOLD_DEG = 90;
+export const EXTEND_THRESHOLD_DEG = 150;  // was 160 — near-lockout counts
+export const BEND_THRESHOLD_DEG = 105;    // was 90  — 80 % depth counts
 
 /** Max perpendicular hip deviation (normalized) before triggering a warning. */
 const HIP_SAG_THRESHOLD = 0.12;
