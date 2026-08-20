@@ -11,6 +11,11 @@ import type {
   ExercisePhase,
   ExerciseWarning,
 } from './visionProtocol';
+import { angleAt, isVisible } from './kinematicsUtils';
+import type { KinematicsEngine, ExerciseAnalysis } from './kinematicsEngine';
+
+/** Re-export for backward compatibility with tests that import from here. */
+export { angleAt } from './kinematicsUtils';
 
 /** COCO 33-landmark pose indices relevant to squat analysis. */
 export const LANDMARKS = {
@@ -31,9 +36,6 @@ export const LANDMARKS = {
 export const STAND_THRESHOLD_DEG = 160;
 export const SQUAT_THRESHOLD_DEG = 100;
 
-/** Min visibility for a landmark to be trusted by the kinematic analysis. */
-const MIN_VISIBILITY = 0.5;
-
 /** Max normalized lateral knee deviation (from the hip–ankle line) that is tolerated. */
 const VALGUS_THRESHOLD = 0.3;
 
@@ -53,32 +55,6 @@ export interface SquatAnalysis {
 
 export function createInitialSquatState(): SquatState {
   return { phase: 'get_ready', repCount: 0 };
-}
-
-function isVisible(point: LandmarkPoint | undefined): point is LandmarkPoint {
-  if (!point) return false;
-  return (point.visibility ?? 1) >= MIN_VISIBILITY;
-}
-
-/** Internal angle (degrees, 0..180) at vertex `b` of triangle a–b–c. */
-export function angleAt(
-  a: LandmarkPoint,
-  b: LandmarkPoint,
-  c: LandmarkPoint,
-): number {
-  const abx = a.x - b.x;
-  const aby = a.y - b.y;
-  const cbx = c.x - b.x;
-  const cby = c.y - b.y;
-
-  const dot = abx * cbx + aby * cby;
-  const magAB = Math.hypot(abx, aby);
-  const magCB = Math.hypot(cbx, cby);
-
-  if (magAB === 0 || magCB === 0) return 180;
-
-  const cosine = Math.max(-1, Math.min(1, dot / (magAB * magCB)));
-  return (Math.acos(cosine) * 180) / Math.PI;
 }
 
 export interface KneeAngles {
@@ -201,6 +177,10 @@ export function analyzeSquatFrame(
       if (bothFlexed) phase = 'squat';
       break;
     case 'holding':
+    case 'descending':
+    case 'ascending':
+    case 'hinged':
+    case 'standing':
       break;
   }
 
@@ -211,3 +191,22 @@ export function analyzeSquatFrame(
 
   return { detected: true, repCount, phase, warning, nextState };
 }
+
+// ── Engine adapter ──────────────────────────────────────────────────
+
+/** Squat kinematics engine — wraps the pure functions above. */
+export const squatEngine: KinematicsEngine = {
+  pattern: 'squat',
+  warningJoints: [LANDMARKS.leftKnee, LANDMARKS.rightKnee],
+  initialState: createInitialSquatState,
+  analyzeFrame(points, state): ExerciseAnalysis {
+    const result = analyzeSquatFrame(points, state as SquatState);
+    return {
+      detected: result.detected,
+      repCount: result.repCount,
+      phase: result.phase,
+      warning: result.warning,
+      nextState: result.nextState,
+    };
+  },
+};

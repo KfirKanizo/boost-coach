@@ -68,6 +68,10 @@ const PHASE_LABELS: Record<ExercisePhase, string> = {
   down: 'DOWN',
   up: 'UP',
   holding: 'HOLDING',
+  descending: 'DOWN',
+  ascending: 'UP',
+  hinged: 'HINGED',
+  standing: 'STANDING',
 };
 
 function formatTime(totalSec: number): string {

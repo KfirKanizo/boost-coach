@@ -11,6 +11,11 @@ import type {
   ExercisePhase,
   ExerciseWarning,
 } from './visionProtocol';
+import { angleAt, isVisible } from './kinematicsUtils';
+import type { KinematicsEngine, ExerciseAnalysis } from './kinematicsEngine';
+
+/** Re-export for backward compatibility with tests that import from here. */
+export { angleAt } from './kinematicsUtils';
 
 /** COCO 33-landmark pose indices relevant to push-up analysis. */
 export const PUSH_UP_LANDMARKS = {
@@ -34,9 +39,6 @@ export const PUSH_UP_LANDMARKS = {
 export const EXTEND_THRESHOLD_DEG = 160;
 export const BEND_THRESHOLD_DEG = 90;
 
-/** Min visibility for a landmark to be trusted. */
-const MIN_VISIBILITY = 0.5;
-
 /** Max perpendicular hip deviation (normalized) before triggering a warning. */
 const HIP_SAG_THRESHOLD = 0.12;
 
@@ -55,32 +57,6 @@ export interface PushUpAnalysis {
 
 export function createInitialPushUpState(): PushUpState {
   return { phase: 'get_ready', repCount: 0 };
-}
-
-function isVisible(point: LandmarkPoint | undefined): point is LandmarkPoint {
-  if (!point) return false;
-  return (point.visibility ?? 1) >= MIN_VISIBILITY;
-}
-
-/** Internal angle (degrees, 0..180) at vertex `b` of triangle a–b–c. */
-export function angleAt(
-  a: LandmarkPoint,
-  b: LandmarkPoint,
-  c: LandmarkPoint,
-): number {
-  const abx = a.x - b.x;
-  const aby = a.y - b.y;
-  const cbx = c.x - b.x;
-  const cby = c.y - b.y;
-
-  const dot = abx * cbx + aby * cby;
-  const magAB = Math.hypot(abx, aby);
-  const magCB = Math.hypot(cbx, cby);
-
-  if (magAB === 0 || magCB === 0) return 180;
-
-  const cosine = Math.max(-1, Math.min(1, dot / (magAB * magCB)));
-  return (Math.acos(cosine) * 180) / Math.PI;
 }
 
 export interface ElbowAngles {
@@ -232,10 +208,14 @@ export function analyzePushUpFrame(
     case 'up':
       if (bothFlexed) phase = 'down';
       break;
-    // Squat-only phases — unreachable but keeps TS exhaustive.
+    // Phases belonging to other exercise patterns — kept for exhaustive TS.
     case 'squat':
     case 'stand_up':
     case 'holding':
+    case 'descending':
+    case 'ascending':
+    case 'hinged':
+    case 'standing':
       break;
   }
 
@@ -246,3 +226,25 @@ export function analyzePushUpFrame(
 
   return { detected: true, repCount, phase, warning, nextState };
 }
+
+// ── Engine adapter ──────────────────────────────────────────────────
+
+/** Push-up kinematics engine — wraps the pure functions above. */
+export const pushEngine: KinematicsEngine = {
+  pattern: 'push',
+  warningJoints: [
+    PUSH_UP_LANDMARKS.leftHip,
+    PUSH_UP_LANDMARKS.rightHip,
+  ],
+  initialState: createInitialPushUpState,
+  analyzeFrame(points, state): ExerciseAnalysis {
+    const result = analyzePushUpFrame(points, state as PushUpState);
+    return {
+      detected: result.detected,
+      repCount: result.repCount,
+      phase: result.phase,
+      warning: result.warning,
+      nextState: result.nextState,
+    };
+  },
+};

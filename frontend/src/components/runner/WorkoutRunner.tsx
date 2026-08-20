@@ -55,6 +55,10 @@ const PHASE_LABELS: Record<ExercisePhase, string> = {
   down: 'DOWN',
   up: 'UP',
   holding: 'HOLDING',
+  descending: 'DOWN',
+  ascending: 'UP',
+  hinged: 'HINGED',
+  standing: 'STANDING',
 };
 
 // ---------------------------------------------------------------------------
@@ -236,12 +240,7 @@ export function WorkoutRunner() {
 
       if (message.type === 'READY') {
         workerReadyRef.current = true;
-        const pattern: MovementPattern =
-          currentExercise?.movementPattern === 'push'
-            ? 'push'
-            : currentExercise?.movementPattern === 'core'
-              ? 'core'
-              : 'squat';
+        const pattern = (currentExercise?.movementPattern ?? 'squat') as MovementPattern;
         worker.postMessage({ type: 'INIT', movementPattern: pattern });
         setPhase((current) => {
           if (current === 'error' || current === 'completed') return current;

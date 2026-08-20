@@ -12,21 +12,7 @@ import {
   type NormalizedLandmark,
 } from '@mediapipe/tasks-vision';
 
-import {
-  analyzeSquatFrame,
-  createInitialSquatState,
-  type SquatState,
-} from './squatKinematics';
-import {
-  analyzePushUpFrame,
-  createInitialPushUpState,
-  type PushUpState,
-} from './pushUpKinematics';
-import {
-  analyzePlankFrame,
-  createInitialPlankState,
-  type PlankState,
-} from './plankKinematics';
+import { getEngine, type ExerciseState } from './kinematicsEngine';
 import type {
   LandmarkPoint,
   MovementPattern,
@@ -64,9 +50,7 @@ const post = (message: VisionWorkerResponse): void => {
 
 let poseLandmarker: PoseLandmarker | null = null;
 let movementPattern: MovementPattern = 'squat';
-let squatState: SquatState = createInitialSquatState();
-let pushUpState: PushUpState = createInitialPushUpState();
-let plankState: PlankState = createInitialPlankState();
+let currentState: ExerciseState = { phase: 'get_ready', repCount: 0 };
 let lastFrameTimestampMs = 0;
 
 /**
@@ -189,20 +173,12 @@ function handleFrame(request: Extract<VisionWorkerRequest, { type: 'FRAME' }>): 
     const rawLandmarks = result.landmarks?.[0] ?? null;
     const points = rawLandmarks ? toPoints(rawLandmarks) : null;
 
-    let analysis;
-    if (movementPattern === 'push') {
-      analysis = analyzePushUpFrame(points, pushUpState);
-      pushUpState = analysis.nextState;
-    } else if (movementPattern === 'core') {
-      const deltaMs = lastFrameTimestampMs > 0
-        ? Math.max(0, request.timestampMs - lastFrameTimestampMs)
-        : 0;
-      analysis = analyzePlankFrame(points, plankState, deltaMs);
-      plankState = analysis.nextState;
-    } else {
-      analysis = analyzeSquatFrame(points, squatState);
-      squatState = analysis.nextState;
-    }
+    const deltaMs = lastFrameTimestampMs > 0
+      ? Math.max(0, request.timestampMs - lastFrameTimestampMs)
+      : 0;
+    const engine = getEngine(movementPattern);
+    const analysis = engine.analyzeFrame(points, currentState, deltaMs);
+    currentState = analysis.nextState;
     lastFrameTimestampMs = request.timestampMs;
 
     post({
@@ -228,9 +204,7 @@ ctx.addEventListener('message', (event) => {
   const request = event.data;
   if (request.type === 'INIT') {
     movementPattern = request.movementPattern;
-    squatState = createInitialSquatState();
-    pushUpState = createInitialPushUpState();
-    plankState = createInitialPlankState();
+    currentState = getEngine(movementPattern).initialState();
     lastFrameTimestampMs = 0;
   } else if (request.type === 'FRAME') {
     handleFrame(request);

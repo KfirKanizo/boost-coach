@@ -16,6 +16,11 @@ import type {
   ExercisePhase,
   ExerciseWarning,
 } from './visionProtocol';
+import { angleAt, isVisible } from './kinematicsUtils';
+import type { KinematicsEngine, ExerciseState, ExerciseAnalysis } from './kinematicsEngine';
+
+/** Re-export for backward compatibility with tests that import from here. */
+export { angleAt } from './kinematicsUtils';
 
 /** COCO 33-landmark pose indices relevant to plank analysis. */
 export const PLANK_LANDMARKS = {
@@ -42,9 +47,6 @@ export const STRAIGHT_THRESHOLD_DEG = 165;
 export const HIP_SAG_THRESHOLD = 0.08;
 export const HIP_PIKE_THRESHOLD = 0.08;
 
-/** Min visibility for a landmark to be trusted. */
-const MIN_VISIBILITY = 0.5;
-
 export interface PlankState {
   phase: ExercisePhase;
   /** Accumulated holding time in milliseconds (reported to the main thread). */
@@ -61,32 +63,6 @@ export interface PlankAnalysis {
 
 export function createInitialPlankState(): PlankState {
   return { phase: 'get_ready', holdMs: 0 };
-}
-
-function isVisible(point: LandmarkPoint | undefined): point is LandmarkPoint {
-  if (!point) return false;
-  return (point.visibility ?? 1) >= MIN_VISIBILITY;
-}
-
-/** Internal angle (degrees, 0..180) at vertex `b` of triangle a–b–c. */
-export function angleAt(
-  a: LandmarkPoint,
-  b: LandmarkPoint,
-  c: LandmarkPoint,
-): number {
-  const abx = a.x - b.x;
-  const aby = a.y - b.y;
-  const cbx = c.x - b.x;
-  const cby = c.y - b.y;
-
-  const dot = abx * cbx + aby * cby;
-  const magAB = Math.hypot(abx, aby);
-  const magCB = Math.hypot(cbx, cby);
-
-  if (magAB === 0 || magCB === 0) return 180;
-
-  const cosine = Math.max(-1, Math.min(1, dot / (magAB * magCB)));
-  return (Math.acos(cosine) * 180) / Math.PI;
 }
 
 /**
@@ -195,11 +171,15 @@ export function analyzePlankFrame(
         holdMs += frameDeltaMs;
       }
       break;
-    // Rep-based phases — unreachable but keeps TS exhaustive.
+    // Phases belonging to other exercise patterns — kept for exhaustive TS.
     case 'squat':
     case 'stand_up':
     case 'down':
     case 'up':
+    case 'descending':
+    case 'ascending':
+    case 'hinged':
+    case 'standing':
       break;
   }
 
@@ -215,3 +195,35 @@ export function analyzePlankFrame(
   const nextState: PlankState = { phase, holdMs };
   return { detected: true, repCount: 0, phase, warning, nextState };
 }
+
+// ── Engine adapter ──────────────────────────────────────────────────
+
+/** Plank kinematics engine — wraps the pure functions above. */
+export const plankEngine: KinematicsEngine = {
+  pattern: 'core',
+  warningJoints: [
+    PLANK_LANDMARKS.leftHip,
+    PLANK_LANDMARKS.rightHip,
+  ],
+  initialState(): ExerciseState {
+    return { phase: 'get_ready', repCount: 0, holdMs: 0 };
+  },
+  analyzeFrame(points, state, deltaMs): ExerciseAnalysis {
+    const plankState: PlankState = {
+      phase: state.phase,
+      holdMs: state.holdMs ?? 0,
+    };
+    const result = analyzePlankFrame(points, plankState, deltaMs ?? 0);
+    return {
+      detected: result.detected,
+      repCount: result.repCount,
+      phase: result.phase,
+      warning: result.warning,
+      nextState: {
+        phase: result.nextState.phase,
+        repCount: 0,
+        holdMs: result.nextState.holdMs,
+      },
+    };
+  },
+};
