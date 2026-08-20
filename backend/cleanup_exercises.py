@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 
 from sqlalchemy import text
@@ -75,7 +76,16 @@ TARGET_EXERCISE_NAMES: list[str] = [
     "Mountain Climber",
 ]
 
-TARGET_SET = {name.lower() for name in TARGET_EXERCISE_NAMES}
+
+def _normalize(name: str) -> str:
+    """Strip all non-alphanumeric characters and lowercase."""
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+# Pre-compute a lookup from normalized name → original target name
+TARGET_NORMALIZED: dict[str, str] = {
+    _normalize(name): name for name in TARGET_EXERCISE_NAMES
+}
 
 
 async def run() -> None:
@@ -98,22 +108,29 @@ async def run() -> None:
             # asyncpg may return JSONB as a dict or as a JSON string
             if isinstance(raw, str):
                 raw = json.loads(raw)
-            name_en = (raw or {}).get("en", "").strip().lower()
+            name_en = (raw or {}).get("en", "").strip()
             has_animation = bool(r["animation_url"] and len(str(r["animation_url"])) > 0)
             has_instructions = bool(r["instructions"] and len(str(r["instructions"])) > 0)
 
-            matched = name_en in TARGET_SET
-            if name_en and not matched:
-                # Show first few unmatched names for debugging
-                if len(delete_ids) < 5:
-                    print(f"  SKIP (no match): '{name_en}'")
+            normalized = _normalize(name_en)
+            target_name = TARGET_NORMALIZED.get(normalized)
 
-            if matched and has_animation and has_instructions:
-                keep_ids.append(str(r["id"]))
+            if target_name:
+                # Name matches — check data completeness
+                if has_animation and has_instructions:
+                    keep_ids.append(str(r["id"]))
+                else:
+                    delete_ids.append(str(r["id"]))
+                    missing = []
+                    if not has_animation:
+                        missing.append("animation_url")
+                    if not has_instructions:
+                        missing.append("instructions")
+                    print(f"  SKIP '{name_en}': missing {', '.join(missing)}")
             else:
                 delete_ids.append(str(r["id"]))
 
-        print(f"Keeping:  {len(keep_ids)} exercises")
+        print(f"\nKeeping:  {len(keep_ids)} exercises")
         print(f"Deleting: {len(delete_ids)} exercises")
 
         # Show kept exercise names for verification
@@ -123,18 +140,18 @@ async def run() -> None:
                 f"SELECT name_translations->>'en' AS name FROM exercises "
                 f"WHERE id::text IN ({keep_csv}) ORDER BY name"
             ))).fetchall()
-            print("Kept exercises:")
+            print("\nKept exercises:")
             for (name,) in kept_names:
                 print(f"  - {name}")
 
         if not delete_ids:
-            print("Nothing to delete — done.")
+            print("\nNothing to delete — done.")
             await engine.dispose()
             return
 
         # ── 2. Confirm ────────────────────────────────────────────────
         if "--yes" not in sys.argv:
-            answer = input("Proceed with deletion? [y/N] ").strip().lower()
+            answer = input("\nProceed with deletion? [y/N] ").strip().lower()
             if answer != "y":
                 print("Aborted.")
                 await engine.dispose()
