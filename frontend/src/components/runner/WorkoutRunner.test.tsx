@@ -134,6 +134,38 @@ describe('WorkoutRunner', () => {
     expect(screen.getByText('Set 2 / 2')).toBeInTheDocument();
   });
 
+  it('resets rep counter and restarts frame loop after rest', async () => {
+    vi.useFakeTimers();
+    renderRunner();
+    await waitForReady();
+
+    // Complete Set 1 (3 reps — worker count goes to 3)
+    await emitResults(3);
+
+    // Rest countdown expires
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
+    await act(async () => {});
+
+    // Should be in ready state for Set 2
+    await waitForReady();
+    expect(screen.getByText('Set 2 / 2')).toBeInTheDocument();
+    expect(screen.getByText(/start when ready/i)).toBeInTheDocument();
+
+    // Emit reps for Set 2 — worker count is cumulative, so 4, 5, 6
+    await emitResults(4);
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('/3')).toBeInTheDocument();
+
+    await emitResults(5);
+    expect(screen.getByText('2')).toBeInTheDocument();
+
+    await emitResults(6);
+    // Set 2 (last set) of Push-ups complete → advances to Squats
+    expect(screen.getByText('Squats')).toBeInTheDocument();
+  });
+
   it('skip rest button immediately triggers next set', async () => {
     vi.useFakeTimers();
     renderRunner();

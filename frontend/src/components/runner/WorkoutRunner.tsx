@@ -130,6 +130,7 @@ export function WorkoutRunner() {
   const workerRepCountRef = useRef(0);
   const pauseLockRef = useRef(false); // blocks rep processing while paused
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const captureFrameRef = useRef<() => void>(() => {});
   const isHoldingRef = useRef(false); // tracks whether worker reports 'holding' phase
   const isEarlyExitRef = useRef(false); // true when user quit early — partial credit
   const partialRepsRef = useRef(0); // accumulated reps at quit time
@@ -184,6 +185,10 @@ export function WorkoutRunner() {
         captureInFlightRef.current = false;
       });
   }, []);
+
+  // Keep the ref in sync so beginSet() can restart the frame loop without
+  // adding captureFrame to its dependency array.
+  captureFrameRef.current = captureFrame;
 
   const startCamera = useCallback(async () => {
     const video = videoRef.current;
@@ -421,6 +426,9 @@ export function WorkoutRunner() {
     setSetIndex((prev) => prev + 1);
     workerStartRepCountRef.current = workerRepCountRef.current;
     setPhase('ready');
+    // Restart the frame loop — the pause lock was blocking captureFrame()
+    // during the rest period, which killed the self-sustaining cycle.
+    captureFrameRef.current();
   }, []);
 
   /** Transition to the next exercise: tear down, brief pause, re-init. */
