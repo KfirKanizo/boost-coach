@@ -125,9 +125,13 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-between bg-ink px-6 pb-12 pt-20">
       <header className="flex flex-col items-center gap-3 text-center">
-        <span className="text-6xl font-black tracking-tight text-paper">
-          Boost<span className="text-neon">Coach</span>
-        </span>
+        <img
+          src="/logo.png"
+          alt="BoostCoach"
+          className="h-20 w-auto object-contain"
+          width={200}
+          height={80}
+        />
         <p className="text-sm text-ash">Own your daily boost.</p>
       </header>
 

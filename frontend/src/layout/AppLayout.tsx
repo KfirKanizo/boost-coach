@@ -26,6 +26,15 @@ export function AppLayout({ activeTab, onTabChange, children }: AppLayoutProps) 
           Offline Mode - Progress saved locally
         </div>
       )}
+      <header className="sticky top-0 z-40 flex items-center border-b border-white/5 bg-ink/80 px-4 backdrop-blur-xl">
+        <img
+          src="/logo.png"
+          alt="BoostCoach"
+          className="h-8 w-auto py-2 object-contain"
+          width={120}
+          height={32}
+        />
+      </header>
       <main className="flex-1">{children}</main>
       <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
     </div>
