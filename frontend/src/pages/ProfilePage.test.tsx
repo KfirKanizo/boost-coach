@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { UserProfile } from '../api/client';
 import { clearAuthToken } from '../services/tokenStorage';
+import {
+  getProfileName,
+  setProfileName,
+  getProfilePicture,
+  setProfilePicture,
+} from '../services/profileStorage';
 import { ProfilePage } from './ProfilePage';
 
 vi.mock('../api/client', () => ({
@@ -16,6 +22,13 @@ vi.mock('../api/client', () => ({
 
 vi.mock('../services/tokenStorage', () => ({
   clearAuthToken: vi.fn(),
+}));
+
+vi.mock('../services/profileStorage', () => ({
+  getProfileName: vi.fn().mockReturnValue(''),
+  setProfileName: vi.fn(),
+  getProfilePicture: vi.fn().mockReturnValue(null),
+  setProfilePicture: vi.fn(),
 }));
 
 function profile(overrides: Partial<UserProfile> = {}): UserProfile {
@@ -49,6 +62,10 @@ describe('ProfilePage', () => {
     vi.mocked(api.getUserProfile).mockReset();
     vi.mocked(api.updateUserProfile).mockReset();
     vi.mocked(clearAuthToken).mockReset();
+    vi.mocked(getProfileName).mockReturnValue('');
+    vi.mocked(getProfilePicture).mockReturnValue(null);
+    vi.mocked(setProfileName).mockReset();
+    vi.mocked(setProfilePicture).mockReset();
   });
 
   it('displays the fetched email and metrics', async () => {
@@ -110,7 +127,6 @@ describe('ProfilePage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /edit/i }));
 
-    // Should show sliders and save button; view-mode text should be gone
     expect(screen.queryByText('Your details')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
     expect(screen.getByText('Gender')).toBeInTheDocument();
@@ -152,5 +168,34 @@ describe('ProfilePage', () => {
     expect(screen.getByText('weight loss')).toBeInTheDocument();
     expect(screen.getByText('endurance')).toBeInTheDocument();
     expect(screen.getByText('gym')).toBeInTheDocument();
+  });
+
+  it('displays local profile name when available', async () => {
+    vi.mocked(getProfileName).mockReturnValue('Alice');
+    vi.mocked(api.getUserProfile).mockResolvedValue(profile());
+
+    renderProfile();
+
+    // Should show "Alice" in header subtitle and in Name & Photo section
+    const aliceElements = await screen.findAllByText('Alice');
+    expect(aliceElements.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('allows editing local name', async () => {
+    vi.mocked(api.getUserProfile).mockResolvedValue(profile());
+
+    renderProfile();
+    await screen.findByText('test@boostcoach.fit');
+
+    // Click the Name & Photo row to start editing
+    await userEvent.click(screen.getByText('Tap to set your name'));
+
+    // Type a new name
+    await userEvent.type(screen.getByPlaceholderText('Your name'), 'Alice');
+
+    // Save
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(setProfileName).toHaveBeenCalledWith('Alice');
   });
 });

@@ -1,9 +1,4 @@
-/** Domain types mirroring the BoostCoach API contract (snake_case payloads). */
-
-/** Polymorphic boost type driving the StudioFactory. */
-export type BoostType = 'VISION_REP' | 'DURATION' | 'DISTANCE_GPS';
-
-export type BoostStatus = 'pending' | 'completed' | 'skipped';
+export type BoostType = 'VISION_REP' | 'DURATION';
 
 export interface Exercise {
   id: string;
@@ -11,16 +6,27 @@ export interface Exercise {
   primary_muscle: string;
   movement_pattern: string;
   equipment_required: string;
-  boost_type: BoostType;
+  boost_type: string;
   animation_url?: string;
   instructions?: string[];
 }
 
+export interface BoostTargetMetrics {
+  sets?: number;
+  reps?: number;
+  duration_sec?: number;
+}
+
+export interface BoostResultMetrics {
+  reps_completed?: number;
+  duration_sec?: number;
+}
+
 export interface Boost {
   id: string;
-  status: BoostStatus;
-  target_metrics: Record<string, unknown>;
-  result_metrics: Record<string, unknown> | null;
+  status: 'pending' | 'completed' | 'skipped';
+  target_metrics: BoostTargetMetrics;
+  result_metrics: BoostResultMetrics | null;
   scheduled_date: string;
   exercise: Exercise;
 }

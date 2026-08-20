@@ -1,4 +1,3 @@
-import type { BoostType } from '../../types/boost';
 import type { MovementPattern } from '../../workers/visionProtocol';
 import { MediaPipeCameraTracker } from './MediaPipeCameraTracker';
 import { SimpleTimerTracker } from './SimpleTimerTracker';
@@ -8,7 +7,7 @@ export interface StudioFactoryProps {
    * Polymorphic boost type from the API (`boost_type`).
    * Dispatches to the matching execution environment.
    */
-  boostType: BoostType;
+  boostType: string;
   /** Countdown length (seconds) for timed boosts, e.g. VISION_REP. */
   durationSec?: number;
   /** When provided, the executed boost is reported as completed on finish. */

@@ -20,6 +20,7 @@ vi.mock('../api/client', () => ({
     login: vi.fn(),
     register: vi.fn(),
     googleLogin: vi.fn(),
+    getUserProfile: vi.fn(),
   },
 }));
 
@@ -40,16 +41,30 @@ function renderLogin() {
 
 const SUCCESS = { access_token: 'signed.jwt.token', token_type: 'bearer' };
 
+const COMPLETE_PROFILE = {
+  id: 'u-1',
+  email: 'test@boostcoach.fit',
+  gender: null,
+  age: null,
+  weight: 70,
+  height: 175,
+  current_streak: 0,
+  fitness_goals: null,
+  fitness_styles: null,
+};
+
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.mocked(api.login).mockReset();
     vi.mocked(api.register).mockReset();
     vi.mocked(api.googleLogin).mockReset();
+    vi.mocked(api.getUserProfile).mockReset();
     vi.mocked(SocialLogin.login).mockReset();
   });
 
   it('Google button (web fallback) calls login with seeded email', async () => {
     vi.mocked(api.login).mockResolvedValue(SUCCESS);
+    vi.mocked(api.getUserProfile).mockResolvedValue(COMPLETE_PROFILE);
     renderLogin();
 
     await userEvent.click(
@@ -62,6 +77,7 @@ describe('LoginPage', () => {
 
   it('Apple button calls login with mock email', async () => {
     vi.mocked(api.login).mockResolvedValue(SUCCESS);
+    vi.mocked(api.getUserProfile).mockResolvedValue(COMPLETE_PROFILE);
     renderLogin();
 
     await userEvent.click(
@@ -79,6 +95,7 @@ describe('LoginPage', () => {
         resolveLogin = resolve;
       }),
     );
+    vi.mocked(api.getUserProfile).mockResolvedValue(COMPLETE_PROFILE);
     renderLogin();
 
     const google = screen.getByRole('button', { name: /continue with google/i });
@@ -132,6 +149,7 @@ describe('LoginPage', () => {
 
   it('signs in with email/password and lands on The Flow', async () => {
     vi.mocked(api.login).mockResolvedValue(SUCCESS);
+    vi.mocked(api.getUserProfile).mockResolvedValue(COMPLETE_PROFILE);
     renderLogin();
 
     await userEvent.type(screen.getByPlaceholderText(/email/i), 'user@test.com');
@@ -140,5 +158,47 @@ describe('LoginPage', () => {
 
     expect(api.login).toHaveBeenCalledWith('user@test.com');
     expect(await screen.findByText('The Flow')).toBeInTheDocument();
+  });
+
+  it('redirects to onboarding when profile is incomplete (missing weight)', async () => {
+    vi.mocked(api.login).mockResolvedValue(SUCCESS);
+    vi.mocked(api.getUserProfile).mockResolvedValue({
+      ...COMPLETE_PROFILE,
+      weight: null,
+    });
+    renderLogin();
+
+    await userEvent.type(screen.getByPlaceholderText(/email/i), 'user@test.com');
+    await userEvent.type(screen.getByPlaceholderText(/password/i), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: /sign in$/i }));
+
+    expect(await screen.findByText('Onboarding')).toBeInTheDocument();
+  });
+
+  it('redirects to onboarding when profile is incomplete (missing height)', async () => {
+    vi.mocked(api.login).mockResolvedValue(SUCCESS);
+    vi.mocked(api.getUserProfile).mockResolvedValue({
+      ...COMPLETE_PROFILE,
+      height: null,
+    });
+    renderLogin();
+
+    await userEvent.type(screen.getByPlaceholderText(/email/i), 'user@test.com');
+    await userEvent.type(screen.getByPlaceholderText(/password/i), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: /sign in$/i }));
+
+    expect(await screen.findByText('Onboarding')).toBeInTheDocument();
+  });
+
+  it('redirects to onboarding when profile fetch fails (safe fallback)', async () => {
+    vi.mocked(api.login).mockResolvedValue(SUCCESS);
+    vi.mocked(api.getUserProfile).mockRejectedValue(new Error('Network error'));
+    renderLogin();
+
+    await userEvent.type(screen.getByPlaceholderText(/email/i), 'user@test.com');
+    await userEvent.type(screen.getByPlaceholderText(/password/i), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: /sign in$/i }));
+
+    expect(await screen.findByText('Onboarding')).toBeInTheDocument();
   });
 });

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   ArrowLeft,
+  Camera,
   Dumbbell,
   Heart,
   Home,
@@ -14,12 +15,18 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { UserProfileUpdateRequest } from '../api/client';
+import {
+  getProfileName,
+  setProfileName,
+  getProfilePicture,
+  setProfilePicture,
+} from '../services/profileStorage';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
 /* ------------------------------------------------------------------ */
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 const GENDER_OPTIONS = [
   { id: 'male', label: 'Male', icon: User },
@@ -149,6 +156,87 @@ function Slider({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Step: Name & Photo                                                */
+/* ------------------------------------------------------------------ */
+
+function NameStep({
+  name,
+  setName,
+  picture,
+  setPicture,
+}: {
+  name: string;
+  setName: (n: string) => void;
+  picture: string | null;
+  setPicture: (p: string | null) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 500 * 1024) {
+        // ~500 KB cap for localStorage
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPicture(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    },
+    [setPicture],
+  );
+
+  return (
+    <div className="flex flex-1 flex-col items-center gap-6 px-6 pt-8">
+      <h2 className="font-display text-2xl font-bold text-paper">
+        Welcome aboard!
+      </h2>
+      <p className="text-center text-sm text-ash">
+        Let&apos;s get to know you.
+      </p>
+
+      {/* Profile picture */}
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-white/20 bg-surface transition-colors hover:border-neon/50"
+      >
+        {picture ? (
+          <img
+            src={picture}
+            alt="Profile"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <Camera size={32} className="text-ash/40 group-hover:text-neon" />
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </button>
+      <span className="text-xs text-ash">Tap to add a photo</span>
+
+      {/* Name */}
+      <input
+        type="text"
+        placeholder="Your name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        maxLength={40}
+        className="w-full rounded-2xl border-2 border-white/10 bg-surface px-4 py-4 text-center text-base font-semibold text-paper placeholder:text-ash/60 focus:border-neon focus:outline-none"
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Step: Gender                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -162,7 +250,7 @@ function GenderStep({
   return (
     <div className="flex flex-1 flex-col items-center gap-6 px-6 pt-8">
       <h2 className="font-display text-2xl font-bold text-paper">
-        What's your gender?
+        What&apos;s your gender?
       </h2>
       <p className="text-center text-sm text-ash">
         This helps us tailor your training plan.
@@ -312,10 +400,11 @@ function GoalsStep({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Step: Summary                                                      */
+/*  Step: BMI Summary (The Magic Moment)                               */
 /* ------------------------------------------------------------------ */
 
 function SummaryStep({
+  name,
   weight,
   height,
   gender,
@@ -323,6 +412,7 @@ function SummaryStep({
   goals,
   styles,
 }: {
+  name: string;
   weight: number;
   height: number;
   gender: string | null;
@@ -336,10 +426,13 @@ function SummaryStep({
   const gaugePct = Math.min(100, Math.max(0, ((bmi - 14) / 26) * 100));
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-8 px-6 pt-8">
+    <div className="flex flex-1 flex-col items-center gap-6 px-6 pt-8">
       <h2 className="font-display text-2xl font-bold text-paper">
-        Your summary
+        {name ? `You're all set, ${name}!` : "You're all set!"}
       </h2>
+      <p className="text-center text-sm text-ash">
+        Here&apos;s a quick snapshot of your profile.
+      </p>
 
       {/* BMI gauge card */}
       <div className="w-full rounded-card bg-surface p-6">
@@ -454,6 +547,8 @@ export function OnboardingWizard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [name, setName] = useState('');
+  const [picture, setPicture] = useState<string | null>(null);
   const [gender, setGender] = useState<string | null>(null);
   const [age, setAge] = useState(25);
   const [weight, setWeight] = useState(70);
@@ -461,9 +556,17 @@ export function OnboardingWizard() {
   const [goals, setGoals] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
 
-  // Load existing profile to pre-fill
+  // Load existing profile to pre-fill + load localStorage name/pic
   useEffect(() => {
     let cancelled = false;
+    // Load localStorage name/picture first
+    const storedName = getProfileName();
+    const storedPic = getProfilePicture();
+    if (!cancelled) {
+      if (storedName) setName(storedName);
+      if (storedPic) setPicture(storedPic);
+    }
+    // Then fetch backend profile to pre-fill metrics
     void api.getUserProfile().then((profile) => {
       if (cancelled) return;
       if (profile.gender) setGender(profile.gender);
@@ -492,7 +595,8 @@ export function OnboardingWizard() {
   }, []);
 
   const canNext = useMemo(() => {
-    if (step === 0) return gender !== null;
+    if (step === 0) return true; // Name step is always skippable
+    if (step === 1) return gender !== null;
     return true;
   }, [step, gender]);
 
@@ -500,6 +604,10 @@ export function OnboardingWizard() {
     setSaving(true);
     setError(null);
     try {
+      // Persist name + picture to localStorage
+      setProfileName(name);
+      setProfilePicture(picture);
+      // Persist metrics to backend
       const patch: UserProfileUpdateRequest = { gender: gender ?? undefined, age, weight, height };
       if (goals.length > 0) patch.fitness_goals = goals;
       if (styles.length > 0) patch.fitness_styles = styles;
@@ -509,7 +617,7 @@ export function OnboardingWizard() {
       setError('Could not save your profile. Please try again.');
       setSaving(false);
     }
-  }, [gender, age, weight, height, goals, styles, navigate]);
+  }, [name, picture, gender, age, weight, height, goals, styles, navigate]);
 
   if (loading) {
     return (
@@ -529,9 +637,12 @@ export function OnboardingWizard() {
       {/* Step content — only the current step is rendered */}
       <div className="flex-1 animate-in fade-in duration-300">
         {step === 0 && (
-          <GenderStep gender={gender} setGender={setGender} />
+          <NameStep name={name} setName={setName} picture={picture} setPicture={setPicture} />
         )}
         {step === 1 && (
+          <GenderStep gender={gender} setGender={setGender} />
+        )}
+        {step === 2 && (
           <MetricsStep
             age={age}
             setAge={setAge}
@@ -541,7 +652,7 @@ export function OnboardingWizard() {
             setHeight={setHeight}
           />
         )}
-        {step === 2 && (
+        {step === 3 && (
           <GoalsStep
             goals={goals}
             toggleGoal={toggleGoal}
@@ -549,8 +660,9 @@ export function OnboardingWizard() {
             toggleStyle={toggleStyle}
           />
         )}
-        {step === 3 && (
+        {step === 4 && (
           <SummaryStep
+            name={name}
             weight={weight}
             height={height}
             gender={gender}

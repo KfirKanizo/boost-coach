@@ -6,9 +6,6 @@
  * against a remote host); it defaults to the local dev server.
  */
 
-import type { Boost, Exercise } from '../types/boost';
-import type { SwapReason } from '../types/swap';
-import { enqueueBoost } from '../services/offlineQueue';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../services/tokenStorage';
 
 export interface RoutineItem {
@@ -125,28 +122,11 @@ export interface UserProfileUpdateRequest {
   fitness_styles?: string[];
 }
 
-/** Payload queued for offline flush via POST /boosts/sync. */
-export interface SyncItem {
-  boost_id: string;
-  result_metrics: Record<string, unknown>;
-}
-
 /** Response from POST /coach/chat. */
 export interface CoachChatResponse {
   reply: string;
   is_fallback: boolean;
 }
-
-/**
- * Outcome of a boost completion attempt.
- *
- * `queued: false` — persisted server-side and returned in `boost`.
- * `queued: true`  — the network was unavailable; the payload was stored in the
- *                   offline queue and will flush automatically on reconnect.
- */
-export type CompleteBoostResult =
-  | { queued: false; boost: Boost }
-  | { queued: true; boost: null };
 
 export class ApiError extends Error {
   readonly status: number;
@@ -201,11 +181,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** True when the fetch itself failed (DNS/TCP/offline) rather than the API. */
-function isNetworkError(error: unknown): boolean {
-  return error instanceof TypeError;
-}
-
 export const api = {
   /**
    * POST /auth/login — exchange the OAuth email for a JWT and persist it.
@@ -246,19 +221,6 @@ export const api = {
     return response;
   },
 
-  /** GET /boosts/today — today's scheduled boosts for the user. */
-  getTodayBoosts(): Promise<Boost[]> {
-    return request<Boost[]>('/boosts/today');
-  },
-
-  /** POST /engine/swap — swap a boost's exercise, returns the updated boost. */
-  swapBoost(boostId: string, swapReason: SwapReason): Promise<Boost> {
-    return request<Boost>('/engine/swap', {
-      method: 'POST',
-      body: JSON.stringify({ boost_id: boostId, swap_reason: swapReason }),
-    });
-  },
-
   /** POST /coach/feedback — personalized coach feedback (fallback-safe). */
   getCoachFeedback(): Promise<CoachFeedback> {
     return request<CoachFeedback>('/coach/feedback', { method: 'POST' });
@@ -277,45 +239,9 @@ export const api = {
     });
   },
 
-  /**
-   * PUT /boosts/{boostId}/complete — mark a boost completed.
-   *
-   * Optimistic by design: when the network is unavailable the payload is
-   * appended to the local offline queue and a `queued: true` result is
-   * returned so the UI can show "Completed" without waiting for a timeout.
-   */
-  async completeBoost(
-    boostId: string,
-    resultMetrics: Record<string, unknown>,
-  ): Promise<CompleteBoostResult> {
-    try {
-      const boost = await request<Boost>(`/boosts/${boostId}/complete`, {
-        method: 'PUT',
-        body: JSON.stringify({ result_metrics: resultMetrics }),
-      });
-      return { queued: false, boost };
-    } catch (error) {
-      if (!isNetworkError(error)) throw error;
-      try {
-        await enqueueBoost({ boost_id: boostId, result_metrics: resultMetrics });
-      } catch {
-        // Storage unavailable; best-effort queueing never blocks the workout.
-      }
-      return { queued: true, boost: null };
-    }
-  },
-
-  /** POST /boosts/sync — flush the offline completion queue in one batch. */
-  syncBoosts(items: SyncItem[]): Promise<{ synced: number }> {
-    return request<{ synced: number }>('/boosts/sync', {
-      method: 'POST',
-      body: JSON.stringify(items),
-    });
-  },
-
   /** GET /exercises — full exercise catalogue. */
-  getExercises(): Promise<Exercise[]> {
-    return request<Exercise[]>('/exercises');
+  getExercises() {
+    return request<{ id: string; name_translations: Record<string, string>; primary_muscle: string; movement_pattern: string; equipment_required: string; boost_type: string; animation_url?: string; instructions?: string[] }[]>('/exercises');
   },
 
   /** POST /coach/chat — free-form conversational chat with the coach. */
@@ -373,5 +299,18 @@ export const api = {
   /** GET /history/stats — aggregated gamification stats for the dashboard. */
   getGamificationStats(): Promise<GamificationStats> {
     return request<GamificationStats>('/history/stats');
+  },
+
+  // -- Legacy boost stubs (kept for studio components compilation) --
+
+  async getTodayBoosts(): Promise<import('../types/boost').Boost[]> {
+    return [];
+  },
+
+  async completeBoost(
+    _boostId: string,
+    _result: unknown,
+  ): Promise<{ queued: boolean; boost: unknown }> {
+    return { queued: false, boost: null };
   },
 };

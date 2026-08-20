@@ -36,7 +36,7 @@ describe('StudioFactory', () => {
   });
 
   it('renders the unsupported fallback for DISTANCE_GPS', () => {
-    renderFactory({ boostType: 'DISTANCE_GPS' });
+    renderFactory({ boostType: 'DISTANCE_GPS' as StudioFactoryProps['boostType'] });
 
     expect(screen.getByText('Unsupported boost type')).toBeInTheDocument();
     expect(screen.getByText('DISTANCE_GPS')).toBeInTheDocument();

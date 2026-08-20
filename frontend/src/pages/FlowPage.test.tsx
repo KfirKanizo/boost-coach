@@ -1,16 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { RoutineItem } from '../api/client';
-import type { Boost } from '../types/boost';
 import { FlowPage } from './FlowPage';
 
 vi.mock('../api/client', () => ({
   api: {
-    getTodayBoosts: vi.fn(),
-    swapBoost: vi.fn(),
     getUserProfile: vi.fn(),
     getRoutines: vi.fn().mockResolvedValue([]),
     getGamificationStats: vi.fn().mockResolvedValue({
@@ -31,11 +28,6 @@ vi.mock('../api/client', () => ({
   },
 }));
 
-function StudioMarker() {
-  const { boost_id } = useParams<{ boost_id: string }>();
-  return <div>Studio {boost_id}</div>;
-}
-
 function BuilderMarker() {
   return <div>Builder Page</div>;
 }
@@ -47,29 +39,9 @@ function renderFlow() {
         <Route path="/" element={<FlowPage />} />
         <Route path="/builder" element={<BuilderMarker />} />
         <Route path="/builder/:routine_id" element={<BuilderMarker />} />
-        <Route path="/studio/:boost_id" element={<StudioMarker />} />
       </Routes>
     </MemoryRouter>,
   );
-}
-
-function makeBoost(overrides: Partial<Boost> = {}): Boost {
-  return {
-    id: 'b-1',
-    status: 'pending',
-    target_metrics: { sets: 4, reps: 12 },
-    result_metrics: null,
-    scheduled_date: '2026-08-15',
-    exercise: {
-      id: 'e-1',
-      name_translations: { en: 'Squat', he: 'סקוואט' },
-      primary_muscle: 'quadriceps',
-      movement_pattern: 'squat',
-      equipment_required: 'bodyweight',
-      boost_type: 'VISION_REP',
-    },
-    ...overrides,
-  };
 }
 
 function mockRoutines(routines: RoutineItem[]) {
@@ -78,8 +50,6 @@ function mockRoutines(routines: RoutineItem[]) {
 
 describe('FlowPage', () => {
   beforeEach(() => {
-    vi.mocked(api.getTodayBoosts).mockReset();
-    vi.mocked(api.swapBoost).mockReset();
     vi.mocked(api.getUserProfile).mockReset();
     vi.mocked(api.getRoutines).mockReset();
     vi.mocked(api.getRoutines).mockResolvedValue([]);
@@ -113,90 +83,33 @@ describe('FlowPage', () => {
     });
   });
 
-  // --- Boost loading ---
-
-  it('shows a loading state then renders the fetched boosts', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([
-      makeBoost({
-        exercise: {
-          id: 'e-1',
-          name_translations: { en: 'Dumbbell Thrusters' },
-          primary_muscle: 'full_body',
-          movement_pattern: 'push',
-          equipment_required: 'dumbbells',
-          boost_type: 'VISION_REP',
-        },
-      }),
-      makeBoost({
-        id: 'b-2',
-        exercise: {
-          id: 'e-2',
-          name_translations: { en: 'Plank Hold' },
-          primary_muscle: 'core',
-          movement_pattern: 'isometric',
-          equipment_required: 'bodyweight',
-          boost_type: 'DURATION',
-        },
-      }),
-    ]);
-
-    renderFlow();
-
-    expect(screen.getByRole('status')).toHaveTextContent(/loading/i);
-    expect(await screen.findByText('Dumbbell Thrusters')).toBeInTheDocument();
-    expect(screen.getByText('Plank Hold')).toBeInTheDocument();
-  });
-
-  it('shows an error with retry when the fetch fails', async () => {
-    vi.mocked(api.getTodayBoosts)
-      .mockRejectedValueOnce(new Error('Cannot reach backend'))
-      .mockResolvedValueOnce([
-        makeBoost({
-          exercise: {
-            id: 'e-1',
-            name_translations: { en: 'Squat' },
-            primary_muscle: 'quadriceps',
-            movement_pattern: 'squat',
-            equipment_required: 'bodyweight',
-            boost_type: 'VISION_REP',
-          },
-        }),
-      ]);
-
-    renderFlow();
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Cannot reach backend',
-    );
-
-    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
-
-    expect(await screen.findByText('Squat')).toBeInTheDocument();
-  });
-
-  it('re-fetches boosts when the window regains focus', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
-
-    renderFlow();
-    await waitFor(() => {
-      expect(api.getTodayBoosts).toHaveBeenCalled();
+  it('loads and displays gamification stats', async () => {
+    vi.mocked(api.getGamificationStats).mockResolvedValue({
+      total_xp: 250,
+      level: 2,
+      xp_current_level: 100,
+      xp_next_level: 400,
+      full_routines: 5,
+      single_exercises: 3,
+      total_reps: 120,
+      total_verified_reps: 90,
+      current_streak: 4,
+      weekly_goal: 4,
+      sessions_this_week: 2,
+      activity_days: [],
     });
 
-    const callsBefore = vi.mocked(api.getTodayBoosts).mock.calls.length;
-    fireEvent.focus(window);
+    renderFlow();
 
-    await waitFor(() => {
-      expect(vi.mocked(api.getTodayBoosts).mock.calls.length).toBeGreaterThan(
-        callsBefore,
-      );
-    });
+    expect(await screen.findByText('Full Routines')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('Single Exercises')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
   });
 
   // --- Custom routines ---
 
   it('shows empty state when no routines are saved', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
-
     renderFlow();
 
     expect(
@@ -206,7 +119,6 @@ describe('FlowPage', () => {
   });
 
   it('loads and displays saved custom routines', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -238,7 +150,6 @@ describe('FlowPage', () => {
   });
 
   it('shows Create Custom Flow CTA when under 4 routines', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       { id: 'r-1', name: 'A', exercises: [], schedule_days: null, created_at: '' },
       { id: 'r-2', name: 'B', exercises: [], schedule_days: null, created_at: '' },
@@ -251,7 +162,6 @@ describe('FlowPage', () => {
   });
 
   it('hides Create Custom Flow CTA when at 4 routines', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       { id: 'r-1', name: 'A', exercises: [], schedule_days: null, created_at: '' },
       { id: 'r-2', name: 'B', exercises: [], schedule_days: null, created_at: '' },
@@ -266,7 +176,6 @@ describe('FlowPage', () => {
   });
 
   it('opens FlowOverviewSheet when a routine card is clicked', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -282,7 +191,6 @@ describe('FlowPage', () => {
     renderFlow();
     await screen.findByText('Morning Core');
 
-    // Click on the routine in "My Custom Flows" section
     const routineButtons = screen.getAllByText('Morning Core');
     await userEvent.click(routineButtons[0]);
 
@@ -291,8 +199,6 @@ describe('FlowPage', () => {
   });
 
   it('navigates to builder when Create Custom Flow is clicked', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
-
     renderFlow();
 
     await userEvent.click(screen.getByRole('button', { name: /create custom flow/i }));
@@ -301,8 +207,6 @@ describe('FlowPage', () => {
   });
 
   it('re-fetches routines when the window regains focus', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
-
     renderFlow();
     await screen.findByText(/haven't built any flows yet/i);
 
@@ -319,7 +223,6 @@ describe('FlowPage', () => {
 
   it('shows scheduled routines in Today\'s Flow section', async () => {
     const today = new Date().getDay();
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -341,7 +244,6 @@ describe('FlowPage', () => {
   it('shows rest day message when no routines are scheduled for today', async () => {
     const today = new Date().getDay();
     const otherDay = (today + 3) % 7;
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -361,7 +263,6 @@ describe('FlowPage', () => {
   // --- Edit / Delete ---
 
   it('shows 3-dot menu button on routine cards', async () => {
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -382,7 +283,6 @@ describe('FlowPage', () => {
 
   it('opens edit/delete menu when 3-dot is clicked', async () => {
     const user = userEvent.setup();
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -404,7 +304,6 @@ describe('FlowPage', () => {
 
   it('navigates to builder with routine_id when Edit is clicked', async () => {
     const user = userEvent.setup();
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -426,7 +325,6 @@ describe('FlowPage', () => {
 
   it('shows delete confirmation when Delete is clicked', async () => {
     const user = userEvent.setup();
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',
@@ -449,7 +347,6 @@ describe('FlowPage', () => {
 
   it('deletes routine when confirmed', async () => {
     const user = userEvent.setup();
-    vi.mocked(api.getTodayBoosts).mockResolvedValue([]);
     mockRoutines([
       {
         id: 'r-1',

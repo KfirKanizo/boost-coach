@@ -20,6 +20,11 @@ const PROVIDERS: ProviderButton[] = [
   { id: 'apple', label: 'Continue with Apple', icon: Apple },
 ];
 
+/** Check if the user's profile needs onboarding (missing basic data). */
+function needsOnboarding(profile: { weight: number | null; height: number | null }): boolean {
+  return profile.weight == null || profile.height == null;
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
@@ -31,6 +36,21 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const busy = pendingProvider !== null || submitting;
+
+  /** After successful login, fetch profile and decide where to go. */
+  const postLoginRedirect = async () => {
+    try {
+      const profile = await api.getUserProfile();
+      if (needsOnboarding(profile)) {
+        navigate('/onboarding', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    } catch {
+      // If we can't fetch profile, default to onboarding to be safe
+      navigate('/onboarding', { replace: true });
+    }
+  };
 
   const signInWithGoogle = async () => {
     if (busy) return;
@@ -52,7 +72,7 @@ export function LoginPage() {
         // Web fallback: use mock flow for development
         await api.login('test@boostcoach.fit');
       }
-      navigate('/', { replace: true });
+      await postLoginRedirect();
     } catch {
       setError('Sign-in failed. Please try again.');
       setPendingProvider(null);
@@ -66,7 +86,7 @@ export function LoginPage() {
     try {
       // Apple Sign-In placeholder — mock until native plugin lands.
       await api.login(MOCK_APPLE_EMAIL);
-      navigate('/', { replace: true });
+      await postLoginRedirect();
     } catch {
       setError('Sign-in failed. Please try again.');
       setPendingProvider(null);
@@ -93,7 +113,7 @@ export function LoginPage() {
         navigate('/onboarding', { replace: true });
       } else {
         await api.login(email.trim());
-        navigate('/', { replace: true });
+        await postLoginRedirect();
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';

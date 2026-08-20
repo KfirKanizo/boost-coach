@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dumbbell, Loader2, MoreVertical, Pencil, Play, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Dumbbell, MoreVertical, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { BoostCard } from '../components/flow/BoostCard';
 import { FlowOverviewSheet } from '../components/flow/FlowOverviewSheet';
-import { SwapSheet } from '../components/flow/SwapSheet';
 import { GamificationDashboard } from '../components/profile/GamificationDashboard';
-import type { Boost } from '../types/boost';
-import type { SwapReason } from '../types/swap';
 import type { RoutineExercise } from '../components/builder/RoutineEditor';
 import type { CustomRoutine } from './WorkoutBuilderPage';
 import { toFrontendRoutine } from './WorkoutBuilderPage';
@@ -18,10 +14,6 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 export function FlowPage() {
   const navigate = useNavigate();
-  const [boosts, setBoosts] = useState<Boost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [swapBoostId, setSwapBoostId] = useState<string | null>(null);
 
   const [routines, setRoutines] = useState<CustomRoutine[]>([]);
   const [selectedRoutine, setSelectedRoutine] = useState<CustomRoutine | null>(null);
@@ -46,19 +38,6 @@ export function FlowPage() {
 
   const todayDayIndex = new Date().getDay();
 
-  const loadBoosts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.getTodayBoosts();
-      setBoosts(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load today\u2019s flow');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const loadRoutines = useCallback(async () => {
     try {
       const items = await api.getRoutines();
@@ -69,32 +48,16 @@ export function FlowPage() {
   }, []);
 
   useEffect(() => {
-    void loadBoosts();
     void loadRoutines();
-  }, [loadBoosts, loadRoutines]);
+  }, [loadRoutines]);
 
   useEffect(() => {
     const handleFocus = () => {
-      void loadBoosts();
       void loadRoutines();
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [loadBoosts, loadRoutines]);
-
-  const handleSwapConfirm = useCallback(
-    async (reason: SwapReason) => {
-      if (swapBoostId === null) return;
-      const updated = await api.swapBoost(swapBoostId, reason);
-      setBoosts((prev) =>
-        prev.map((boost) => (boost.id === updated.id ? updated : boost)),
-      );
-      setSwapBoostId(null);
-    },
-    [swapBoostId],
-  );
-
-  const swapBoost = boosts.find((boost) => boost.id === swapBoostId);
+  }, [loadRoutines]);
 
   const canCreateMore = routines.length < MAX_ROUTINES;
 
@@ -301,63 +264,6 @@ export function FlowPage() {
           </button>
         )}
       </div>
-
-      {/* ── Daily Boosts ─────────────────────────────────────────── */}
-      <div className="mt-8 flex flex-col gap-4 px-4">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-ash">
-          Daily Boosts
-        </h2>
-
-        {loading && (
-          <div
-            role="status"
-            className="flex items-center justify-center gap-3 rounded-card bg-surface py-10 text-sm text-ash"
-          >
-            <Loader2 size={18} className="animate-spin text-neon" />
-            Loading boosts…
-          </div>
-        )}
-
-        {!loading && error && (
-          <div
-            role="alert"
-            className="flex flex-col items-center gap-4 rounded-card bg-surface px-6 py-10 text-center"
-          >
-            <p className="text-sm text-ash">{error}</p>
-            <button
-              type="button"
-              onClick={() => void loadBoosts()}
-              className="flex items-center gap-2 rounded-full bg-neon px-6 py-2.5 text-sm font-bold uppercase tracking-widest text-ink"
-            >
-              <RefreshCw size={16} />
-              Retry
-            </button>
-          </div>
-        )}
-
-        {!loading && !error && boosts.length === 0 && (
-          <p className="rounded-card bg-surface px-6 py-10 text-center text-sm text-ash">
-            No boosts scheduled today. Time to rest or recover.
-          </p>
-        )}
-
-        {!loading && !error &&
-          boosts.map((boost) => (
-            <BoostCard
-              key={boost.id}
-              boost={boost}
-              onSwap={setSwapBoostId}
-            />
-          ))}
-      </div>
-
-      {swapBoost && (
-        <SwapSheet
-          exerciseName={swapBoost.exercise.name_translations.en ?? 'Exercise'}
-          onClose={() => setSwapBoostId(null)}
-          onConfirm={handleSwapConfirm}
-        />
-      )}
 
       {selectedRoutine && (
         <FlowOverviewSheet

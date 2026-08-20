@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
+  Camera,
   Dumbbell,
   Heart,
   Home,
@@ -18,6 +19,12 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { UserProfile, UserProfileUpdateRequest } from '../api/client';
 import { clearAuthToken } from '../services/tokenStorage';
+import {
+  getProfileName,
+  setProfileName,
+  getProfilePicture,
+  setProfilePicture,
+} from '../services/profileStorage';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -152,6 +159,13 @@ export function ProfilePage() {
   const [goals, setGoals] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
 
+  // Local profile (name + picture)
+  const [localName, setLocalName] = useState('');
+  const [localPicture, setLocalPicture] = useState<string | null>(null);
+  const [editingLocal, setEditingLocal] = useState(false);
+  const [localNameDraft, setLocalNameDraft] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -175,6 +189,9 @@ export function ProfilePage() {
 
   useEffect(() => {
     void loadProfile();
+    // Load localStorage name/picture
+    setLocalName(getProfileName());
+    setLocalPicture(getProfilePicture());
   }, [loadProfile]);
 
   const handleLogout = async () => {
@@ -201,6 +218,33 @@ export function ProfilePage() {
     }
   }, [gender, age, weight, height, goals, styles]);
 
+  const handleSaveLocal = useCallback(() => {
+    setProfileName(localNameDraft);
+    setLocalName(localNameDraft);
+    setEditingLocal(false);
+  }, [localNameDraft]);
+
+  const handlePictureChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 500 * 1024) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setProfilePicture(dataUrl);
+        setLocalPicture(dataUrl);
+      };
+      reader.readAsDataURL(file);
+    },
+    [],
+  );
+
+  const handleRemovePicture = useCallback(() => {
+    setProfilePicture(null);
+    setLocalPicture(null);
+  }, []);
+
   const toggleGoal = useCallback((id: string) => {
     setGoals((prev) =>
       prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id],
@@ -216,37 +260,107 @@ export function ProfilePage() {
   const bmi = useMemo(() => calcBmi(weight, height), [weight, height]);
   const cat = useMemo(() => bmiCategory(bmi), [bmi]);
 
+  const initials = localName
+    ? localName.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+    : null;
+
   return (
     <div className="px-4 pb-28 pt-6">
       {/* Header */}
       <header className="mb-6 flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neon/15">
-          <span className="font-display text-xl font-bold text-neon">BC</span>
-        </div>
+        {/* Profile picture / avatar */}
+        <button
+          type="button"
+          onClick={() => {
+            if (editingLocal) {
+              fileRef.current?.click();
+            }
+          }}
+          className={`relative flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neon/15 ${editingLocal ? 'cursor-pointer ring-2 ring-neon/30' : ''}`}
+        >
+          {localPicture ? (
+            <img
+              src={localPicture}
+              alt="Profile"
+              className="h-full w-full object-cover"
+            />
+          ) : initials ? (
+            <span className="font-display text-xl font-bold text-neon">{initials}</span>
+          ) : (
+            <span className="font-display text-xl font-bold text-neon">BC</span>
+          )}
+          {editingLocal && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <Camera size={20} className="text-paper" />
+            </div>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePictureChange}
+          />
+        </button>
+
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-bold">Profile</h1>
-          {profile ? (
-            <p className="truncate text-sm text-ash">{profile.email}</p>
+          {editingLocal ? (
+            <input
+              type="text"
+              value={localNameDraft}
+              onChange={(e) => setLocalNameDraft(e.target.value)}
+              placeholder="Your name"
+              maxLength={40}
+              className="mt-0.5 w-full truncate border-b border-neon bg-transparent text-sm font-semibold text-paper placeholder:text-ash/60 focus:outline-none"
+            />
+          ) : profile ? (
+            <p className="truncate text-sm text-ash">
+              {localName || profile.email}
+            </p>
           ) : (
             <p className="text-sm text-ash">Your profile</p>
           )}
         </div>
+
         {!loading && !error && profile && (
-          <button
-            type="button"
-            onClick={() => (editing ? void handleSave() : setEditing(true))}
-            disabled={saving}
-            className="flex h-10 items-center gap-2 rounded-full bg-neon px-4 text-sm font-bold text-ink transition-opacity disabled:opacity-60 active:scale-[0.97]"
-          >
-            {saving ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : editing ? (
-              <Save size={16} />
-            ) : (
-              <Pencil size={16} />
+          <div className="flex gap-2">
+            {editingLocal && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleRemovePicture();
+                  handleSaveLocal();
+                }}
+                className="flex h-10 items-center gap-2 rounded-full bg-surface px-4 text-sm font-bold text-ash transition-opacity active:scale-[0.97]"
+              >
+                Cancel
+              </button>
             )}
-            {saving ? 'Saving' : editing ? 'Save' : 'Edit'}
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (editingLocal) {
+                  handleSaveLocal();
+                } else if (editing) {
+                  void handleSave();
+                } else {
+                  setEditing(true);
+                }
+              }}
+              disabled={saving}
+              className="flex h-10 items-center gap-2 rounded-full bg-neon px-4 text-sm font-bold text-ink transition-opacity disabled:opacity-60 active:scale-[0.97]"
+            >
+              {saving ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : editing || editingLocal ? (
+                <Save size={16} />
+              ) : (
+                <Pencil size={16} />
+              )}
+              {saving ? 'Saving' : editing || editingLocal ? 'Save' : 'Edit'}
+            </button>
+          </div>
         )}
       </header>
 
@@ -282,6 +396,29 @@ export function ProfilePage() {
       {/* Profile content */}
       {!loading && !error && profile && (
         <>
+          {/* Local name edit section */}
+          {!editingLocal && (
+            <button
+              type="button"
+              onClick={() => {
+                setLocalNameDraft(localName);
+                setEditingLocal(true);
+              }}
+              className="mb-4 flex w-full items-center gap-3 rounded-card bg-surface p-4 text-left transition-all hover:bg-white/[0.07] active:scale-[0.98]"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neon/15">
+                <User size={18} className="text-neon" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase tracking-wider text-ash">Name & Photo</p>
+                <p className="truncate text-sm font-semibold text-paper">
+                  {localName || 'Tap to set your name'}
+                </p>
+              </div>
+              <Pencil size={14} className="text-ash" />
+            </button>
+          )}
+
           {editing ? (
             /* ---- Edit mode ---- */
             <div className="flex flex-col gap-6">
