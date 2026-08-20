@@ -186,32 +186,48 @@ async def seed_exercises(
 ) -> SeedResult:
     """Fetch exercises from ExerciseDB and upsert only the curated targets.
 
-    Uses limit=2000 in a single request to pull the full ExerciseDB
-    catalog, then filters down to the ~50 target exercises by matching
-    normalised names.
+    Paginates through the full catalog (limit=100 per page) with a
+    rate-limit delay, then filters down to the ~50 target exercises.
     """
     headers = {
         "X-RapidAPI-Key": RAPIDAPI_KEY,
         "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
     }
 
-    # ── Fetch full catalog ─────────────────────────────────────────────
-    try:
-        resp = await asyncio.to_thread(
-            requests.get,
-            EXERCISEDB_API_URL,
-            headers=headers,
-            params={"limit": 2000},
-            timeout=60,
-        )
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to reach ExerciseDB: {exc}",
-        )
+    PAGE_SIZE = 100
+    all_exercises: list[dict[str, Any]] = []
+    offset = 0
 
-    all_exercises: list[dict[str, Any]] = resp.json()
+    # ── Paginated fetch ────────────────────────────────────────────────
+    while True:
+        try:
+            resp = await asyncio.to_thread(
+                requests.get,
+                EXERCISEDB_API_URL,
+                headers=headers,
+                params={"limit": PAGE_SIZE, "offset": offset},
+                timeout=30,
+            )
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to reach ExerciseDB at offset {offset}: {exc}",
+            )
+
+        page: list[dict[str, Any]] = resp.json()
+        if not page:
+            break
+
+        all_exercises.extend(page)
+        offset += PAGE_SIZE
+
+        # Break early if we got fewer items than requested (last page)
+        if len(page) < PAGE_SIZE:
+            break
+
+        # Rate-limit: pause between pages
+        await asyncio.sleep(1.5)
 
     # ── Filter to target exercises ─────────────────────────────────────
     inserted = 0
