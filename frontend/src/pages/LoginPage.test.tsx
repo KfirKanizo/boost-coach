@@ -44,6 +44,7 @@ const SUCCESS = { access_token: 'signed.jwt.token', token_type: 'bearer' };
 const COMPLETE_PROFILE = {
   id: 'u-1',
   email: 'test@boostcoach.fit',
+  isAdmin: false,
   gender: null,
   age: null,
   weight: 70,

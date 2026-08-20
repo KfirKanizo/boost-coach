@@ -73,6 +73,7 @@ describe('FlowPage', () => {
     vi.mocked(api.getUserProfile).mockResolvedValue({
       id: 'u-1',
       email: 'test@example.com',
+      isAdmin: false,
       gender: null,
       age: null,
       weight: null,
