@@ -47,15 +47,14 @@ export function GamificationDashboard() {
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
-          icon={Zap}
-          label="Total XP"
-          value={stats.total_xp}
-          accent
+          icon={Dumbbell}
+          label="Full Routines"
+          value={stats.full_routines}
         />
         <StatCard
-          icon={Dumbbell}
-          label="Workouts"
-          value={stats.total_workouts}
+          icon={Timer}
+          label="Single Exercises"
+          value={stats.single_exercises}
         />
         <StatCard
           icon={Target}
@@ -63,7 +62,7 @@ export function GamificationDashboard() {
           value={stats.total_verified_reps}
         />
         <StatCard
-          icon={Timer}
+          icon={Zap}
           label="Total Reps"
           value={stats.total_reps}
         />

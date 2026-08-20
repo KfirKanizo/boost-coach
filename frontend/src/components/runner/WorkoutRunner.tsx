@@ -32,6 +32,7 @@ type RunnerPhase = 'loading' | 'ready' | 'active' | 'resting' | 'completed' | 'e
 
 interface WorkoutLocationState {
   sessionExercises: RoutineExercise[];
+  routineId?: string;
 }
 
 /** Describes a completed exercise for the summary screen. */
@@ -81,6 +82,11 @@ export function WorkoutRunner() {
   const sessionExercises = useMemo(() => {
     const state = location.state as WorkoutLocationState | null;
     return state?.sessionExercises ?? [];
+  }, [location.state]);
+
+  const routineId = useMemo(() => {
+    const state = location.state as WorkoutLocationState | null;
+    return state?.routineId ?? undefined;
   }, [location.state]);
 
   // ── Redirect guard ─────────────────────────────────────────────────
@@ -575,6 +581,7 @@ export function WorkoutRunner() {
       exercise_count: exerciseCount,
       verified_reps: verifiedRepsRef.current,
       target_reps: targetRepsTotal,
+      routine_id: routineId,
     }).then((session) => {
       if (session?.xp_earned) setXpEarned(session.xp_earned);
     }).catch(() => {

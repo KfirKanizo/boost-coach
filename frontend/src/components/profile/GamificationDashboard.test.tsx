@@ -15,7 +15,8 @@ const mockStats: GamificationStats = {
   level: 4,
   xp_current_level: 900,
   xp_next_level: 1600,
-  total_workouts: 12,
+  full_routines: 8,
+  single_exercises: 4,
   total_reps: 480,
   total_verified_reps: 450,
   current_streak: 5,
@@ -43,9 +44,9 @@ describe('GamificationDashboard', () => {
       expect(screen.getByText('Level 4')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByText('Total XP')).toBeInTheDocument();
-    expect(screen.getByText('Workouts')).toBeInTheDocument();
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('Full Routines')).toBeInTheDocument();
+    expect(screen.getByText('Single Exercises')).toBeInTheDocument();
     expect(screen.getByText('Verified Reps')).toBeInTheDocument();
   });
 

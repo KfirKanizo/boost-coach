@@ -50,6 +50,7 @@ export interface WorkoutCompletePayload {
   exercise_count: number;
   verified_reps: number;
   target_reps: number;
+  routine_id?: string;
 }
 
 export interface WorkoutSessionItem {
@@ -72,7 +73,8 @@ export interface GamificationStats {
   level: number;
   xp_current_level: number;
   xp_next_level: number;
-  total_workouts: number;
+  full_routines: number;
+  single_exercises: number;
   total_reps: number;
   total_verified_reps: number;
   current_streak: number;

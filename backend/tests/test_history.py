@@ -6,6 +6,7 @@ GET  /api/v1/history/stats
 """
 
 from app.models import User
+import sqlalchemy as sa
 
 from helpers import login_headers
 
@@ -167,7 +168,8 @@ async def test_gamification_stats_empty(async_client, db_session) -> None:
     body = resp.json()
     assert body["total_xp"] == 0
     assert body["level"] == 1
-    assert body["total_workouts"] == 0
+    assert body["full_routines"] == 0
+    assert body["single_exercises"] == 0
     assert body["sessions_this_week"] == 0
     assert body["activity_days"] == []
 
@@ -176,7 +178,7 @@ async def test_gamification_stats_after_workouts(async_client, db_session) -> No
     await _seed_user(db_session)
     headers = await login_headers(async_client, db_session)
 
-    # Complete 2 workouts
+    # Complete 2 single-exercise workouts
     for _ in range(2):
         await async_client.post(
             "/api/v1/history/complete",
@@ -196,11 +198,65 @@ async def test_gamification_stats_after_workouts(async_client, db_session) -> No
     body = resp.json()
     assert body["total_xp"] == 700  # 2 * (30*10 + 50)
     assert body["level"] >= 2
-    assert body["total_workouts"] == 2
+    assert body["full_routines"] == 0
+    assert body["single_exercises"] == 2
     assert body["total_reps"] == 60
     assert body["total_verified_reps"] == 60
     assert body["sessions_this_week"] == 2
     assert len(body["activity_days"]) >= 1
+
+
+async def test_gamification_stats_counts_routine_vs_single(async_client, db_session) -> None:
+    """Sessions with routine_id are 'full_routines'; without are 'single_exercises'."""
+    from app.models import Routine, User
+
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    # Create a routine in the DB
+    user = (await db_session.execute(
+        sa.select(User).where(User.email == DEFAULT_EMAIL)
+    )).scalar_one()
+    routine = Routine(user_id=user.id, name="Test Routine", exercises=[])
+    db_session.add(routine)
+    await db_session.commit()
+    await db_session.refresh(routine)
+
+    routine_id = str(routine.id)
+
+    # 1 routine-based workout
+    await async_client.post(
+        "/api/v1/history/complete",
+        headers=headers,
+        json={
+            "session_type": "flow",
+            "total_reps": 50,
+            "total_duration_seconds": 300,
+            "exercise_count": 3,
+            "verified_reps": 50,
+            "target_reps": 50,
+            "routine_id": routine_id,
+        },
+    )
+    # 1 standalone workout
+    await async_client.post(
+        "/api/v1/history/complete",
+        headers=headers,
+        json={
+            "session_type": "single",
+            "total_reps": 10,
+            "total_duration_seconds": 60,
+            "exercise_count": 1,
+            "verified_reps": 10,
+            "target_reps": 10,
+        },
+    )
+
+    resp = await async_client.get("/api/v1/history/stats", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["full_routines"] == 1
+    assert body["single_exercises"] == 1
 
 
 async def test_gamification_stats_requires_auth(async_client) -> None:

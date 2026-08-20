@@ -182,6 +182,9 @@ class WorkoutSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), index=True
     )
+    routine_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("routines.id"), nullable=True, index=True
+    )
     session_type: Mapped[str] = mapped_column(String, nullable=False)
     total_reps: Mapped[int] = mapped_column(Integer, default=0)
     total_duration_seconds: Mapped[int] = mapped_column(Integer, default=0)

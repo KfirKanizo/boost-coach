@@ -49,6 +49,9 @@ class WorkoutCompleteRequest(BaseModel):
     target_reps: int = Field(
         0, ge=0, description="Total target reps across all sets (for bonus)"
     )
+    routine_id: UUID | None = Field(
+        None, description="UUID of the routine if started from a custom flow"
+    )
 
 
 class WorkoutSessionResponse(BaseModel):
@@ -74,7 +77,8 @@ class GamificationStatsResponse(BaseModel):
     level: int
     xp_current_level: int
     xp_next_level: int
-    total_workouts: int
+    full_routines: int
+    single_exercises: int
     total_reps: int
     total_verified_reps: int
     current_streak: int

@@ -13,7 +13,20 @@ vi.mock('../api/client', () => ({
     swapBoost: vi.fn(),
     getUserProfile: vi.fn(),
     getRoutines: vi.fn().mockResolvedValue([]),
-    getWeeklyStats: vi.fn().mockResolvedValue({ sessions_this_week: 0, weekly_goal: 4 }),
+    getGamificationStats: vi.fn().mockResolvedValue({
+      total_xp: 0,
+      level: 1,
+      xp_current_level: 0,
+      xp_next_level: 100,
+      full_routines: 0,
+      single_exercises: 0,
+      total_reps: 0,
+      total_verified_reps: 0,
+      current_streak: 0,
+      weekly_goal: 4,
+      sessions_this_week: 0,
+      activity_days: [],
+    }),
     deleteRoutine: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -70,8 +83,21 @@ describe('FlowPage', () => {
     vi.mocked(api.getUserProfile).mockReset();
     vi.mocked(api.getRoutines).mockReset();
     vi.mocked(api.getRoutines).mockResolvedValue([]);
-    vi.mocked(api.getWeeklyStats).mockReset();
-    vi.mocked(api.getWeeklyStats).mockResolvedValue({ sessions_this_week: 0, weekly_goal: 4 });
+    vi.mocked(api.getGamificationStats).mockReset();
+    vi.mocked(api.getGamificationStats).mockResolvedValue({
+      total_xp: 0,
+      level: 1,
+      xp_current_level: 0,
+      xp_next_level: 100,
+      full_routines: 0,
+      single_exercises: 0,
+      total_reps: 0,
+      total_verified_reps: 0,
+      current_streak: 0,
+      weekly_goal: 4,
+      sessions_this_week: 0,
+      activity_days: [],
+    });
     vi.mocked(api.deleteRoutine).mockReset();
     vi.mocked(api.deleteRoutine).mockResolvedValue(undefined);
     vi.mocked(api.getUserProfile).mockResolvedValue({

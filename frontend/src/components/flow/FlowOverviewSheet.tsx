@@ -55,8 +55,10 @@ export function FlowOverviewSheet({
 
   const handleStart = useCallback(() => {
     onStart(exercises);
-    navigate('/workout', { state: { sessionExercises: exercises } });
-  }, [exercises, onStart, navigate]);
+    navigate('/workout', {
+      state: { sessionExercises: exercises, routineId: routine.id },
+    });
+  }, [exercises, onStart, navigate, routine.id]);
 
   return (
     <div

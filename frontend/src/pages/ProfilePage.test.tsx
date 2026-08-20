@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +11,6 @@ vi.mock('../api/client', () => ({
   api: {
     getUserProfile: vi.fn(),
     updateUserProfile: vi.fn(),
-    getGamificationStats: vi.fn(),
   },
 }));
 
@@ -49,52 +48,17 @@ describe('ProfilePage', () => {
   beforeEach(() => {
     vi.mocked(api.getUserProfile).mockReset();
     vi.mocked(api.updateUserProfile).mockReset();
-    vi.mocked(api.getGamificationStats).mockReset();
     vi.mocked(clearAuthToken).mockReset();
-    // Provide a default resolved value so GamificationDashboard doesn't hang
-    vi.mocked(api.getGamificationStats).mockResolvedValue({
-      total_xp: 0,
-      level: 1,
-      xp_current_level: 0,
-      xp_next_level: 100,
-      total_workouts: 0,
-      total_reps: 0,
-      total_verified_reps: 0,
-      current_streak: 0,
-      weekly_goal: 4,
-      sessions_this_week: 0,
-      activity_days: [],
-    });
   });
 
-  it('displays the fetched email, metrics, and gamification dashboard', async () => {
+  it('displays the fetched email and metrics', async () => {
     vi.mocked(api.getUserProfile).mockResolvedValue(profile());
-    vi.mocked(api.getGamificationStats).mockResolvedValue({
-      total_xp: 300,
-      level: 2,
-      xp_current_level: 100,
-      xp_next_level: 400,
-      total_workouts: 5,
-      total_reps: 200,
-      total_verified_reps: 180,
-      current_streak: 3,
-      weekly_goal: 4,
-      sessions_this_week: 2,
-      activity_days: ['2026-08-19', '2026-08-20'],
-    });
 
     renderProfile();
 
     expect(await screen.findByText('test@boostcoach.fit')).toBeInTheDocument();
     expect(screen.getByText('70 kg')).toBeInTheDocument();
     expect(screen.getByText('175 cm')).toBeInTheDocument();
-    // GamificationDashboard renders these (wait for async fetch)
-    await waitFor(() => {
-      expect(screen.getByText(/Level 2/)).toBeInTheDocument();
-    });
-    expect(screen.getByText('Total XP')).toBeInTheDocument();
-    expect(screen.getByText('Workouts')).toBeInTheDocument();
-    expect(screen.getByText(/3 Day Streak/)).toBeInTheDocument();
   });
 
   it('shows placeholders for unset metrics', async () => {

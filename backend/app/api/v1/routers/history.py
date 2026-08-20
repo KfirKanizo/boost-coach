@@ -39,6 +39,7 @@ async def complete_workout(
 
     session = WorkoutSession(
         user_id=user.id,
+        routine_id=body.routine_id,
         session_type=body.session_type,
         total_reps=body.total_reps,
         total_duration_seconds=body.total_duration_seconds,
@@ -93,10 +94,15 @@ async def gamification_stats(
             func.coalesce(func.sum(WorkoutSession.xp_earned), 0),
             func.coalesce(func.sum(WorkoutSession.total_reps), 0),
             func.coalesce(func.sum(WorkoutSession.verified_reps), 0),
-            func.coalesce(func.count(), 0),
+            func.coalesce(
+                func.count().filter(WorkoutSession.routine_id.is_not(None)), 0
+            ),
+            func.coalesce(
+                func.count().filter(WorkoutSession.routine_id.is_(None)), 0
+            ),
         ).where(WorkoutSession.user_id == user.id)
     )
-    total_xp, total_reps, total_verified_reps, total_workouts = row.one()
+    total_xp, total_reps, total_verified_reps, full_routines, single_exercises = row.one()
 
     # Sessions this week
     week_count = await db.scalar(
@@ -130,7 +136,8 @@ async def gamification_stats(
         level=level,
         xp_current_level=current_level_xp,
         xp_next_level=next_level_xp,
-        total_workouts=total_workouts,
+        full_routines=full_routines,
+        single_exercises=single_exercises,
         total_reps=total_reps,
         total_verified_reps=total_verified_reps,
         current_streak=user.current_streak,

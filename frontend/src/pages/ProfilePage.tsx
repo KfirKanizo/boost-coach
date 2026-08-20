@@ -18,7 +18,6 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { UserProfile, UserProfileUpdateRequest } from '../api/client';
 import { clearAuthToken } from '../services/tokenStorage';
-import { GamificationDashboard } from '../components/profile/GamificationDashboard';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -283,9 +282,6 @@ export function ProfilePage() {
       {/* Profile content */}
       {!loading && !error && profile && (
         <>
-          {/* Gamification Dashboard */}
-          <GamificationDashboard />
-
           {editing ? (
             /* ---- Edit mode ---- */
             <div className="flex flex-col gap-6">

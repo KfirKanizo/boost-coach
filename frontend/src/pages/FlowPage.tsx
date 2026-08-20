@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import { BoostCard } from '../components/flow/BoostCard';
 import { FlowOverviewSheet } from '../components/flow/FlowOverviewSheet';
 import { SwapSheet } from '../components/flow/SwapSheet';
-import { WeeklyGoalWidget } from '../components/flow/WeeklyGoalWidget';
+import { GamificationDashboard } from '../components/profile/GamificationDashboard';
 import type { Boost } from '../types/boost';
 import type { SwapReason } from '../types/swap';
 import type { RoutineExercise } from '../components/builder/RoutineEditor';
@@ -25,7 +25,6 @@ export function FlowPage() {
 
   const [routines, setRoutines] = useState<CustomRoutine[]>([]);
   const [selectedRoutine, setSelectedRoutine] = useState<CustomRoutine | null>(null);
-  const [weeklySessions, setWeeklySessions] = useState<number | undefined>(undefined);
 
   // ── 3-dot menu state ──────────────────────────────────────────────
   const [menuRoutineId, setMenuRoutineId] = useState<string | null>(null);
@@ -69,30 +68,19 @@ export function FlowPage() {
     }
   }, []);
 
-  const loadWeeklyStats = useCallback(async () => {
-    try {
-      const stats = await api.getWeeklyStats();
-      setWeeklySessions(stats.sessions_this_week);
-    } catch {
-      // Silent
-    }
-  }, []);
-
   useEffect(() => {
     void loadBoosts();
     void loadRoutines();
-    void loadWeeklyStats();
-  }, [loadBoosts, loadRoutines, loadWeeklyStats]);
+  }, [loadBoosts, loadRoutines]);
 
   useEffect(() => {
     const handleFocus = () => {
       void loadBoosts();
       void loadRoutines();
-      void loadWeeklyStats();
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [loadBoosts, loadRoutines, loadWeeklyStats]);
+  }, [loadBoosts, loadRoutines]);
 
   const handleSwapConfirm = useCallback(
     async (reason: SwapReason) => {
@@ -153,9 +141,9 @@ export function FlowPage() {
 
   return (
     <div className="pb-28 pt-4">
-      {/* Weekly Goal Widget */}
+      {/* Gamification Dashboard */}
       <div className="px-4">
-        <WeeklyGoalWidget sessionsThisWeek={weeklySessions} />
+        <GamificationDashboard />
       </div>
 
       {/* ── TODAY'S FLOW (scheduled routines) ─────────────────────── */}
