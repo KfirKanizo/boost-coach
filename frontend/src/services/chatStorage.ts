@@ -10,6 +10,7 @@ export interface ChatMessage {
   role: 'user' | 'coach';
   content: string;
   timestamp: number;
+  isFallback?: boolean;
 }
 
 function storageKey(email: string): string {

@@ -6,6 +6,8 @@ PUT    /api/v1/routines/{id}
 DELETE /api/v1/routines/{id}
 """
 
+import uuid
+
 from sqlalchemy import select
 
 from app.models import Routine, User
@@ -13,6 +15,9 @@ from app.models import Routine, User
 from helpers import login_headers
 
 DEFAULT_EMAIL = "test@boostcoach.fit"
+
+# Valid UUIDs used as exercise_id fixtures in tests.
+FIXTURE_EXERCISE_ID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
 
 async def _seed_user(db_session, email: str = DEFAULT_EMAIL) -> User:
@@ -32,7 +37,7 @@ async def _create_routine(
             "name": name,
             "exercises": [
                 {
-                    "exercise_id": "ex-1",
+                    "exercise_id": FIXTURE_EXERCISE_ID,
                     "exercise_name": "Push-ups",
                     "movement_pattern": "push",
                     "sets": 3,
@@ -139,6 +144,6 @@ async def test_list_routines_empty(async_client, db_session) -> None:
 async def test_create_routine_requires_auth(async_client) -> None:
     resp = await async_client.post(
         "/api/v1/routines",
-        json={"name": "X", "exercises": [{"exercise_id": "a", "exercise_name": "A", "movement_pattern": "push", "sets": 3, "reps": 10, "rest_seconds": 60}]},
+        json={"name": "X", "exercises": [{"exercise_id": str(uuid.uuid4()), "exercise_name": "A", "movement_pattern": "push", "sets": 3, "reps": 10, "rest_seconds": 60}]},
     )
     assert resp.status_code == 401

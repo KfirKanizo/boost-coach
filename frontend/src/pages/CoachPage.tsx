@@ -7,7 +7,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { api } from '../api/client';
-import type { UserProfile, GamificationStats } from '../api/client';
+import type { UserProfile } from '../api/client';
 import {
   loadChatHistory,
   saveChatHistory,
@@ -129,7 +129,6 @@ export function CoachPage() {
   const [state, setState] = useState<CoachState>({ phase: 'idle' });
   const [input, setInput] = useState('');
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [stats, setStats] = useState<GamificationStats | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
 
   // Progressive profiling
@@ -161,9 +160,8 @@ export function CoachPage() {
         if (!active) return;
 
         setProfile(profileData);
-        setStats(statsData);
 
-        // Build the dynamic system prompt.
+        // Build the dynamic system prompt from profile + gamification stats.
         const pp: PromptProfile = {
           email: profileData.email,
           gender: profileData.gender,
