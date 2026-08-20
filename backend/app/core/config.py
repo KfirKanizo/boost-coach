@@ -41,7 +41,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("LLM_BASE_URL", "OPENAI_BASE_URL"),
     )
     llm_model: str = "gpt-4o-mini"
-    llm_timeout_seconds: float = 15.0
+    llm_timeout_seconds: float = 60.0
 
     # --- Auth / JWT -----------------------------------------------------
     secret_key: str = Field(

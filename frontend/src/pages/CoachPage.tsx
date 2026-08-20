@@ -141,6 +141,16 @@ export function CoachPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [scrollTrigger, setScrollTrigger] = useState(0);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Use requestAnimationFrame to wait for the DOM to paint the new content.
+    requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    });
+  }, []);
 
   /* -------------------------------------------------------------- */
   /*  Load profile + gamification stats + localStorage history on   */
@@ -211,14 +221,13 @@ export function CoachPage() {
 
   /* -------------------------------------------------------------- */
   /*  Auto-scroll to the latest message.                            */
+  /*  Triggers on: new messages, loading state change, and input     */
+  /*  focus (mobile keyboard).                                      */
   /* -------------------------------------------------------------- */
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: 'smooth',
-    });
-  }, [messages, state.phase]);
+    scrollToBottom();
+  }, [messages, state.phase, scrollTrigger, scrollToBottom]);
 
   /* -------------------------------------------------------------- */
   /*  Clear conversation history                                    */
@@ -249,6 +258,7 @@ export function CoachPage() {
     persistHistory(updated);
     setInput('');
     setState({ phase: 'loading', userMessage: text });
+    setScrollTrigger((n) => n + 1);
 
     // Build conversation history for the LLM (last 20 turns to stay within context).
     const historyForApi = messages.slice(-20).map((m) => ({
@@ -358,7 +368,7 @@ export function CoachPage() {
       {/* Chat history */}
       <div
         ref={scrollRef}
-        className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4"
+        className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-32"
       >
         {/* Progressive profiling prompts */}
         {profile != null && savedWeight && <ThankYouBubble />}
@@ -455,6 +465,7 @@ export function CoachPage() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setScrollTrigger((n) => n + 1)}
             placeholder="Ask The Coach…"
             aria-label="Message the coach"
             disabled={state.phase === 'loading'}
