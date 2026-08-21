@@ -47,7 +47,7 @@ export function LevelProgress({
   const isMaxLevel = level >= 50;
   const isFull = !isMaxLevel && xpNeeded > 0 && xpIntoLevel >= xpNeeded;
   const pct = isMaxLevel ? 100 : xpNeeded > 0 ? Math.min(100, (xpIntoLevel / xpNeeded) * 100) : 100;
-  const displayXp = useCountUp(totalXp);
+  const displayXp = useCountUp(xpIntoLevel);
 
   return (
     <section className="rounded-card bg-surface p-5">
@@ -72,7 +72,7 @@ export function LevelProgress({
               {isMaxLevel ? (
                 <span className="font-bold text-neon">MAX</span>
               ) : (
-                <>{(xpIntoLevel).toLocaleString()} / {xpNeeded.toLocaleString()} XP</>
+                <>{displayXp.toLocaleString()} / {xpNeeded.toLocaleString()} XP</>
               )}
             </span>
           </div>
