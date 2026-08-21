@@ -17,6 +17,16 @@ const MUSCLE_CHIPS = [
   { label: 'Core', value: 'core' },
 ] as const;
 
+const MUSCLE_GROUP_CHIPS = [
+  { label: 'ALL', muscles: [] },
+  { label: 'CHEST', muscles: ['chest'] },
+  { label: 'BACK', muscles: ['back'] },
+  { label: 'LEGS', muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves'] },
+  { label: 'SHOULDERS', muscles: ['shoulders'] },
+  { label: 'ARMS', muscles: ['biceps', 'triceps'] },
+  { label: 'CORE', muscles: ['core'] },
+] as const;
+
 const DEFAULT_SETS = 3;
 const DEFAULT_REPS = 10;
 const DEFAULT_REST = 60;
@@ -25,6 +35,11 @@ function matchesEquipment(ex: Exercise, filter: EquipmentFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'bodyweight') return ex.equipment_required === 'bodyweight';
   return ex.equipment_required !== 'bodyweight';
+}
+
+function matchesMuscleGroup(ex: Exercise, groupMuscles: readonly string[]): boolean {
+  if (groupMuscles.length === 0) return true;
+  return groupMuscles.includes(ex.primary_muscle);
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +211,7 @@ export function ExerciseLibraryPage() {
 
   const [equipmentFilter, setEquipmentFilter] = useState<EquipmentFilter>('all');
   const [muscleFilter, setMuscleFilter] = useState('');
+  const [muscleGroupFilter, setMuscleGroupFilter] = useState('');
   const [search, setSearch] = useState('');
 
   // Quick start sheet state
@@ -221,6 +237,8 @@ export function ExerciseLibraryPage() {
   const filtered = exercises.filter((ex) => {
     if (!matchesEquipment(ex, equipmentFilter)) return false;
     if (muscleFilter && ex.movement_pattern !== muscleFilter) return false;
+    const activeGroup = MUSCLE_GROUP_CHIPS.find((g) => g.label === muscleGroupFilter);
+    if (activeGroup && !matchesMuscleGroup(ex, activeGroup.muscles)) return false;
     if (search) {
       const name = (ex.name_translations.en ?? ex.id).toLowerCase();
       if (!name.includes(search.toLowerCase())) return false;
@@ -296,6 +314,27 @@ export function ExerciseLibraryPage() {
               className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all ${
                 muscleFilter === value
                   ? 'border-neon/40 bg-neon/10 text-neon'
+                  : 'border-white/10 bg-white/5 text-ash hover:bg-white/[0.07]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Muscle group chips */}
+      <div className="mt-2 px-4">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+          {MUSCLE_GROUP_CHIPS.map(({ label }) => (
+            <button
+              key={label}
+              type="button"
+              aria-label={`Muscle group: ${label}`}
+              onClick={() => setMuscleGroupFilter(label === muscleGroupFilter ? '' : label)}
+              className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all ${
+                muscleGroupFilter === label
+                  ? 'border-ember/40 bg-ember/10 text-ember'
                   : 'border-white/10 bg-white/5 text-ash hover:bg-white/[0.07]'
               }`}
             >
