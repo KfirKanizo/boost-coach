@@ -23,6 +23,7 @@ import type {
 import type { RoutineExercise } from '../builder/RoutineEditor';
 import { CompletionScreen } from './CompletionScreen';
 import { RestOverlay } from './RestOverlay';
+import { playRepSound, playSetCompleteSound, playTimerTick, playTimerGo } from '../../services/audio';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -139,6 +140,7 @@ export function WorkoutRunner() {
   const partialDurationRef = useRef(0); // accumulated duration at quit time
   const partialExerciseCountRef = useRef(0); // number of exercises with any work done
   const verifiedRepsRef = useRef(0); // vision-verified reps accumulated across sets
+  const prevLocalRepRef = useRef(0); // tracks rep count for sound triggering
 
   // ── Derived values ─────────────────────────────────────────────────
   const currentExercise = sessionExercises[exerciseIndex];
@@ -281,6 +283,12 @@ export function WorkoutRunner() {
           );
           setLocalRepCount(local);
 
+          // Audio cue on each new rep
+          if (local > prevLocalRepRef.current) {
+            playRepSound();
+          }
+          prevLocalRepRef.current = local;
+
           // Smart start: activate on first rep
           setPhase((current) => {
             if (current === 'ready' && local > 0) return 'active';
@@ -372,6 +380,16 @@ export function WorkoutRunner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, restRemaining]);
 
+  // ── Rest timer audio cues ─────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'resting') return;
+    if (restRemaining === 0) {
+      playTimerGo();
+    } else if (restRemaining >= 1 && restRemaining <= 5) {
+      playTimerTick();
+    }
+  }, [phase, restRemaining]);
+
   // ── Duration timer (core exercises: ticks only while holding) ───────
   useEffect(() => {
     if (!isDurationExercise || phase !== 'active') return;
@@ -401,10 +419,13 @@ export function WorkoutRunner() {
 
     // Target hit! Determine next state.
     if (!isLastSet) {
+      playSetCompleteSound();
       beginRest();
     } else if (!isLastExercise) {
+      playSetCompleteSound();
       advanceExercise();
     } else {
+      playSetCompleteSound();
       setPhase('completed');
     }
   }, [
@@ -433,6 +454,7 @@ export function WorkoutRunner() {
     isHoldingRef.current = false;
     setLocalRepCount(0);
     setHoldElapsed(0);
+    prevLocalRepRef.current = 0;
     setSetIndex((prev) => prev + 1);
     workerStartRepCountRef.current = workerRepCountRef.current;
     setPhase('ready');

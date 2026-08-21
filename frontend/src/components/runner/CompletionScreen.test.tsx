@@ -2,6 +2,10 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CompletionScreen } from './CompletionScreen';
 
+vi.mock('../../services/audio', () => ({
+  playLevelUpSound: vi.fn(),
+}));
+
 const defaultExercises = [
   { name: 'Plank', sets: 3, repsPerSet: 1 },
   { name: 'Crunches', sets: 3, repsPerSet: 15 },

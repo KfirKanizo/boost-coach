@@ -6,6 +6,14 @@ import { getFakeWorkers } from '../../test/setupTests';
 import type { RoutineExercise } from '../builder/RoutineEditor';
 import { WorkoutRunner } from './WorkoutRunner';
 
+vi.mock('../../services/audio', () => ({
+  playRepSound: vi.fn(),
+  playSetCompleteSound: vi.fn(),
+  playTimerTick: vi.fn(),
+  playTimerGo: vi.fn(),
+  playLevelUpSound: vi.fn(),
+}));
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 const EXERCISES_DEFAULTS: RoutineExercise[] = [

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Trophy, ArrowLeft, Zap, Shield } from 'lucide-react';
+import { playLevelUpSound } from '../../services/audio';
 
 interface ExerciseSummary {
   name: string;
@@ -95,6 +96,11 @@ export function CompletionScreen({
   const hasDuration = exercises.some((e) => e.isDuration);
   const targetHit = targetReps > 0 && verifiedReps >= targetReps;
   const leveledUp = newLevel != null && previousLevel != null && newLevel > previousLevel;
+
+  // Play level-up fanfare when the celebration overlay appears
+  useEffect(() => {
+    if (leveledUp) playLevelUpSound();
+  }, [leveledUp]);
 
   const animatedXp = useCountUp(xpEarned);
 
