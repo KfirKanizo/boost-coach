@@ -200,7 +200,6 @@ describe('ExerciseLibraryPage', () => {
 
     await user.click(screen.getByRole('button', { name: /muscle group: arms/i }));
 
-    const grid = getGridContainer();
     // No exercises have biceps/triceps in SAMPLE, so empty state
     expect(screen.getByText('No exercises found')).toBeInTheDocument();
   });
