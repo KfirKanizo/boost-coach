@@ -58,6 +58,8 @@ export interface WorkoutSessionItem {
   exercise_count: number;
   created_at: string;
   xp_earned: number;
+  level: number;
+  previous_level: number;
 }
 
 export interface WeeklyStats {

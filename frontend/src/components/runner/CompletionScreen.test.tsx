@@ -124,4 +124,49 @@ describe('CompletionScreen', () => {
     );
     expect(screen.getByText(/complete reps to earn xp/i)).toBeInTheDocument();
   });
+
+  it('shows Level Up celebration when newLevel > previousLevel', () => {
+    render(
+      <CompletionScreen
+        exercises={defaultExercises}
+        verifiedReps={50}
+        targetReps={50}
+        xpEarned={550}
+        newLevel={2}
+        previousLevel={1}
+        onReturn={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Level Up!')).toBeInTheDocument();
+    expect(screen.getByText('You reached Level 2')).toBeInTheDocument();
+    expect(screen.getByText('1 → 2')).toBeInTheDocument();
+  });
+
+  it('does not show Level Up when level unchanged', () => {
+    render(
+      <CompletionScreen
+        exercises={defaultExercises}
+        verifiedReps={50}
+        targetReps={50}
+        xpEarned={550}
+        newLevel={2}
+        previousLevel={2}
+        onReturn={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Level Up!')).not.toBeInTheDocument();
+  });
+
+  it('does not show Level Up when level props are omitted', () => {
+    render(
+      <CompletionScreen
+        exercises={defaultExercises}
+        verifiedReps={50}
+        targetReps={50}
+        xpEarned={550}
+        onReturn={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Level Up!')).not.toBeInTheDocument();
+  });
 });

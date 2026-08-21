@@ -64,6 +64,8 @@ class WorkoutSessionResponse(BaseModel):
     exercise_count: int
     verified_reps: int = 0
     xp_earned: int = 0
+    level: int = 1
+    previous_level: int = 1
     created_at: datetime
 
 

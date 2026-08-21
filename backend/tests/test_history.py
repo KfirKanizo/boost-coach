@@ -45,6 +45,10 @@ async def test_complete_workout_session(async_client, db_session) -> None:
     assert body["xp_earned"] == 650  # 60 * 10 + 50 bonus
     assert body["verified_reps"] == 60
     assert "id" in body
+    assert "level" in body
+    assert "previous_level" in body
+    assert body["level"] >= 1
+    assert body["previous_level"] >= 1
 
 
 async def test_complete_single_exercise(async_client, db_session) -> None:
@@ -262,3 +266,49 @@ async def test_gamification_stats_counts_routine_vs_single(async_client, db_sess
 async def test_gamification_stats_requires_auth(async_client) -> None:
     resp = await async_client.get("/api/v1/history/stats")
     assert resp.status_code == 401
+
+
+async def test_level_up_detection(async_client, db_session) -> None:
+    """When XP crosses a level threshold, previous_level < level in the response."""
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    # First workout: 650 XP
+    # level = floor(sqrt(650/100)) + 1 = floor(2.55) + 1 = 3
+    # previous_level = floor(sqrt(0/100)) + 1 = 1
+    resp = await async_client.post(
+        "/api/v1/history/complete",
+        headers=headers,
+        json={
+            "session_type": "single",
+            "total_reps": 60,
+            "total_duration_seconds": 0,
+            "exercise_count": 1,
+            "verified_reps": 60,
+            "target_reps": 60,
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["previous_level"] == 1
+    assert body["level"] == 3  # 650 XP → level 3
+
+    # Second workout: 650 more XP (total 1300)
+    # level = floor(sqrt(1300/100)) + 1 = floor(3.61) + 1 = 4
+    # previous_level = floor(sqrt(650/100)) + 1 = 3
+    resp = await async_client.post(
+        "/api/v1/history/complete",
+        headers=headers,
+        json={
+            "session_type": "single",
+            "total_reps": 60,
+            "total_duration_seconds": 0,
+            "exercise_count": 1,
+            "verified_reps": 60,
+            "target_reps": 60,
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["previous_level"] == 3
+    assert body["level"] == 4  # 1300 XP → level 4

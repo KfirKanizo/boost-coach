@@ -34,7 +34,7 @@ async def complete_workout(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> WorkoutSessionResponse:
-    """Log a completed workout session and return XP earned."""
+    """Log a completed workout session and return XP earned + level info."""
     xp = compute_xp(body.verified_reps, body.target_reps)
 
     session = WorkoutSession(
@@ -51,7 +51,19 @@ async def complete_workout(
     await db.commit()
     await db.refresh(session)
 
-    return WorkoutSessionResponse.model_validate(session)
+    # ── checkLevelUp: compute level from cumulative XP ───────────────
+    total_xp = await db.scalar(
+        select(func.coalesce(func.sum(WorkoutSession.xp_earned), 0)).where(
+            WorkoutSession.user_id == user.id
+        )
+    ) or 0
+    new_level = compute_level(total_xp)
+    previous_level = compute_level(total_xp - xp)
+
+    response = WorkoutSessionResponse.model_validate(session)
+    response.level = new_level
+    response.previous_level = previous_level
+    return response
 
 
 @router.get("/weekly-stats", response_model=WeeklyStatsResponse)

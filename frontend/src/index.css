@@ -68,3 +68,18 @@
   box-shadow: 0 0 12px rgba(0, 230, 118, 0.4);
   cursor: pointer;
 }
+
+/* ── Confetti animation for level-up celebration ────────────────── */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg) scale(0.3);
+    opacity: 0;
+  }
+}

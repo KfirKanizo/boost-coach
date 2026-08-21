@@ -112,6 +112,8 @@ export function WorkoutRunner() {
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
+  const [previousLevel, setPreviousLevel] = useState(1);
+  const [newLevel, setNewLevel] = useState(1);
 
   // Camera / vision state
   const [landmarks, setLandmarks] = useState<LandmarkPoint[] | null>(null);
@@ -332,6 +334,14 @@ export function WorkoutRunner() {
     setLoadingMessage('Initializing camera...');
     void startCamera();
     createWorker();
+
+    // Capture current level for level-up detection after workout
+    api.getGamificationStats()
+      .then((stats) => {
+        if (mountedRef.current) setPreviousLevel(stats.level);
+      })
+      .catch(() => { /* best-effort */ });
+
     return () => {
       mountedRef.current = false;
       teardownVision();
@@ -592,6 +602,7 @@ export function WorkoutRunner() {
       routine_id: routineId,
     }).then((session) => {
       if (session?.xp_earned) setXpEarned(session.xp_earned);
+      if (session?.level) setNewLevel(session.level);
     }).catch(() => {
       // Silent — completion is best-effort; the user sees the screen either way.
     });
@@ -959,6 +970,8 @@ export function WorkoutRunner() {
             0,
           )}
           xpEarned={xpEarned}
+          newLevel={newLevel}
+          previousLevel={previousLevel}
           onReturn={handleReturn}
         />
       )}

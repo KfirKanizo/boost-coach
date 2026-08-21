@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Trophy, ArrowLeft, Zap } from 'lucide-react';
+import { Trophy, ArrowLeft, Zap, Shield } from 'lucide-react';
 
 interface ExerciseSummary {
   name: string;
@@ -13,6 +13,8 @@ interface CompletionScreenProps {
   verifiedReps: number;
   targetReps: number;
   xpEarned: number;
+  newLevel?: number;
+  previousLevel?: number;
   onReturn: () => void;
 }
 
@@ -44,28 +46,89 @@ function useCountUp(target: number, duration = 1200): number {
   return display;
 }
 
+/** Deterministic confetti particles for the level-up celebration. */
+const CONFETTI_COLORS = ['#A3FFB0', '#FFD93D', '#FF6B6B', '#4ECDC4', '#A78BFA', '#FF9FF3'];
+
+function ConfettiParticle({ index }: { index: number }) {
+  const color = CONFETTI_COLORS[index % CONFETTI_COLORS.length];
+  const left = (index * 17 + 7) % 100;
+  const delay = (index * 0.13) % 1.2;
+  const size = 6 + (index % 4) * 2;
+  const drift = ((index * 23) % 40) - 20;
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        top: '-8px',
+        left: `${left}%`,
+        width: `${size}px`,
+        height: `${size}px`,
+        backgroundColor: color,
+        borderRadius: index % 3 === 0 ? '50%' : '2px',
+        animation: `confetti-fall 1.8s ease-in ${delay}s forwards`,
+        transform: `translateX(${drift}px)`,
+      }}
+    />
+  );
+}
+
 /**
  * Workout-complete summary shown after the final set of the final exercise.
  *
- * Shows verified reps vs target, a count-up XP animation, and an
- * exercise-by-exercise breakdown.
+ * Shows verified reps vs target, a count-up XP animation, an
+ * exercise-by-exercise breakdown, and a "Level Up!" celebration when
+ * the user's level increases.
  */
 export function CompletionScreen({
   exercises,
   verifiedReps,
   targetReps,
   xpEarned,
+  newLevel,
+  previousLevel,
   onReturn,
 }: CompletionScreenProps) {
   const totalSets = exercises.reduce((sum, e) => sum + e.sets, 0);
   const totalReps = exercises.reduce((sum, e) => sum + e.sets * e.repsPerSet, 0);
   const hasDuration = exercises.some((e) => e.isDuration);
   const targetHit = targetReps > 0 && verifiedReps >= targetReps;
+  const leveledUp = newLevel != null && previousLevel != null && newLevel > previousLevel;
 
   const animatedXp = useCountUp(xpEarned);
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/85 p-8 text-center">
+      {/* ── Level Up celebration overlay ─────────────────────────── */}
+      {leveledUp && (
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden bg-black/90">
+          {/* Confetti particles */}
+          <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+            {Array.from({ length: 30 }, (_, i) => (
+              <ConfettiParticle key={i} index={i} />
+            ))}
+          </div>
+
+          {/* Shield icon with glow */}
+          <div className="relative mb-4 flex h-20 w-20 items-center justify-center">
+            <div className="absolute inset-0 animate-pulse rounded-full border-2 border-neon/50 bg-neon/15" />
+            <Shield size={36} className="relative text-neon" fill="currentColor" />
+          </div>
+
+          <h2 className="font-display text-3xl font-black tracking-tight text-neon animate-bounce">
+            Level Up!
+          </h2>
+          <p className="mt-2 text-lg font-bold text-paper">
+            You reached Level {newLevel}
+          </p>
+          <p className="mt-1 text-sm text-ash">
+            {previousLevel} &rarr; {newLevel}
+          </p>
+        </div>
+      )}
+
+      {/* ── Standard completion content ──────────────────────────── */}
       {/* Trophy */}
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-neon/30 bg-neon/10">
         <Trophy size={28} className="text-neon" />

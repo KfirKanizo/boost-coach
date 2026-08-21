@@ -23,7 +23,8 @@ describe('LevelProgress', () => {
   it('shows XP progress text after animation', async () => {
     render(<LevelProgress {...defaultProps} />);
     await act(async () => { vi.advanceTimersByTime(1200); });
-    expect(screen.getByText(/450 \/ 500 XP/)).toBeInTheDocument();
+    // Shows XP into current level: 450 - 400 = 50, out of 900 - 400 = 500
+    expect(screen.getByText(/50 \/ 500 XP/)).toBeInTheDocument();
   });
 
   it('shows XP remaining to next level', async () => {
@@ -57,6 +58,35 @@ describe('LevelProgress', () => {
       />,
     );
     await act(async () => { vi.advanceTimersByTime(1200); });
-    expect(screen.getByText(/100 \/ 300 XP/)).toBeInTheDocument();
+    // Shows XP into current level: 100 - 100 = 0, out of 400 - 100 = 300
+    expect(screen.getByText(/0 \/ 300 XP/)).toBeInTheDocument();
+  });
+
+  it('shows Ready to level up when XP meets next level threshold', async () => {
+    render(
+      <LevelProgress
+        level={2}
+        currentXp={400}
+        xpForCurrentLevel={100}
+        xpForNextLevel={400}
+        totalXp={400}
+      />,
+    );
+    await act(async () => { vi.advanceTimersByTime(1200); });
+    expect(screen.getByText('Ready to level up!')).toBeInTheDocument();
+  });
+
+  it('shows Ready to level up when XP exceeds next level threshold', async () => {
+    render(
+      <LevelProgress
+        level={2}
+        currentXp={500}
+        xpForCurrentLevel={100}
+        xpForNextLevel={400}
+        totalXp={500}
+      />,
+    );
+    await act(async () => { vi.advanceTimersByTime(1200); });
+    expect(screen.getByText('Ready to level up!')).toBeInTheDocument();
   });
 });
