@@ -83,21 +83,23 @@ async def send_push(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PushSendResponse:
-    """Dispatch push notifications to a list of users.
+    """Dispatch push notifications to a list of users or broadcast to all.
 
-    Intended for our future external orchestrator. Queries all
-    ``PushSubscription`` rows for the given user IDs and dispatches
-    via ``pywebpush``. Stale subscriptions (404 Gone / 410 Gone) are
+    When ``send_to_all`` is true, ``user_ids`` is ignored and all active
+    subscriptions are targeted.  Stale subscriptions (404/410) are
     automatically cleaned up.
     """
     vapid_private_key = _get_vapid_private_key()
     vapid_claims = _get_vapid_claims()
 
-    rows = await db.scalars(
-        select(PushSubscription).where(
-            PushSubscription.user_id.in_(body.user_ids)
+    if body.send_to_all:
+        rows = await db.scalars(select(PushSubscription))
+    else:
+        rows = await db.scalars(
+            select(PushSubscription).where(
+                PushSubscription.user_id.in_(body.user_ids)
+            )
         )
-    )
     subscriptions = rows.all()
 
     sent = 0

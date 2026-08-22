@@ -7,6 +7,7 @@ import {
   Users,
   Activity,
   LayoutGrid,
+  Send,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -38,6 +39,13 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Broadcast Push state ──────────────────────────────────────────
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastBody, setBroadcastBody] = useState('');
+  const [broadcastLink, setBroadcastLink] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -56,6 +64,28 @@ export function AdminPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const handleBroadcast = useCallback(async () => {
+    if (!broadcastTitle.trim() || !broadcastBody.trim()) return;
+    setBroadcastSending(true);
+    setBroadcastResult(null);
+    try {
+      const result = await api.sendPush({
+        send_to_all: true,
+        title: broadcastTitle.trim(),
+        body: broadcastBody.trim(),
+        data: broadcastLink.trim() ? { link: broadcastLink.trim() } : undefined,
+      });
+      setBroadcastResult(`Sent to ${result.sent} devices (${result.failed} failed, ${result.removed} stale removed)`);
+      setBroadcastTitle('');
+      setBroadcastBody('');
+      setBroadcastLink('');
+    } catch (err) {
+      setBroadcastResult(err instanceof Error ? err.message : 'Broadcast failed');
+    } finally {
+      setBroadcastSending(false);
+    }
+  }, [broadcastTitle, broadcastBody, broadcastLink]);
 
   return (
     <div className="px-4 pb-28 pt-6">
@@ -169,6 +199,65 @@ export function AdminPage() {
                   </span>
                 </div>
               </button>
+            </div>
+          </section>
+
+          {/* Broadcast Push */}
+          <section className="mt-8">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
+              Broadcast Push
+            </h2>
+            <div className="rounded-card border border-white/[0.06] bg-surface p-4">
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Title</label>
+                  <input
+                    type="text"
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                    placeholder="Notification title"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Body</label>
+                  <textarea
+                    value={broadcastBody}
+                    onChange={(e) => setBroadcastBody(e.target.value)}
+                    placeholder="Notification message..."
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Link (optional)</label>
+                  <input
+                    type="text"
+                    value={broadcastLink}
+                    onChange={(e) => setBroadcastLink(e.target.value)}
+                    placeholder="/profile"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={broadcastSending || !broadcastTitle.trim() || !broadcastBody.trim()}
+                  onClick={() => void handleBroadcast()}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3 text-sm font-bold text-ink transition-colors hover:bg-amber-400 active:scale-[0.98] disabled:opacity-50"
+                >
+                  {broadcastSending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Send size={16} />
+                  )}
+                  {broadcastSending ? 'Sending...' : 'Send to All Users'}
+                </button>
+                {broadcastResult && (
+                  <p className={`text-xs font-semibold ${broadcastResult.includes('failed') ? 'text-crimson' : 'text-emerald-400'}`}>
+                    {broadcastResult}
+                  </p>
+                )}
+              </div>
             </div>
           </section>
         </>

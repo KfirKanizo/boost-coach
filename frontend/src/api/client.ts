@@ -472,6 +472,19 @@ export const api = {
     });
   },
 
+  /** POST /push/send — dispatch push notifications (admin broadcast). */
+  sendPush(data: {
+    send_to_all: boolean;
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+  }): Promise<{ sent: number; failed: number; removed: number }> {
+    return request('/push/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // -- Legacy boost stubs (kept for studio components compilation) --
 
   async getTodayBoosts(): Promise<import('../types/boost').Boost[]> {

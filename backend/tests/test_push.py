@@ -192,3 +192,77 @@ async def test_subscribe_persists_multiple_subscriptions(
 
 # Need to import select for the DB queries in tests
 from sqlalchemy import select
+
+
+# ── POST /push/send — send_to_all broadcast ─────────────────────────
+
+
+async def test_send_push_broadcast_no_subscriptions(async_client, db_session) -> None:
+    """send_to_all with no subscriptions in DB returns zeros."""
+    from app.core.config import settings
+
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    original_key = settings.vapid_private_key
+    settings.vapid_private_key = "test-private-key"
+    try:
+        resp = await async_client.post(
+            "/api/v1/push/send",
+            headers=headers,
+            json={
+                "send_to_all": True,
+                "title": "Broadcast",
+                "body": "Hello everyone",
+            },
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["sent"] == 0
+    finally:
+        settings.vapid_private_key = original_key
+
+
+async def test_send_push_broadcast_no_vapid_returns_503(async_client, db_session) -> None:
+    """send_to_all without VAPID configured should 503."""
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    resp = await async_client.post(
+        "/api/v1/push/send",
+        headers=headers,
+        json={
+            "send_to_all": True,
+            "title": "Broadcast",
+            "body": "Hello everyone",
+        },
+    )
+    assert resp.status_code == 503
+
+
+async def test_send_push_empty_user_ids_requires_send_to_all(
+    async_client, db_session
+) -> None:
+    """Empty user_ids without send_to_all should still work (returns zeros)."""
+    from app.core.config import settings
+
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    original_key = settings.vapid_private_key
+    settings.vapid_private_key = "test-private-key"
+    try:
+        resp = await async_client.post(
+            "/api/v1/push/send",
+            headers=headers,
+            json={
+                "user_ids": [],
+                "title": "Test",
+                "body": "Hello",
+            },
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["sent"] == 0
+    finally:
+        settings.vapid_private_key = original_key

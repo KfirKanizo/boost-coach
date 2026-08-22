@@ -1,8 +1,19 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PreBuiltProgram, ProgramExerciseEntry, AdminExercise } from '../api/client';
+
+const PREDEFINED_TAGS = [
+  'chest', 'back', 'shoulders', 'biceps', 'triceps',
+  'quadriceps', 'hamstrings', 'glutes', 'calves', 'core', 'full_body',
+] as const;
+
+const TAG_LABELS: Record<string, string> = {
+  chest: 'Chest', back: 'Back', shoulders: 'Shoulders', biceps: 'Biceps',
+  triceps: 'Triceps', quadriceps: 'Quadriceps', hamstrings: 'Hamstrings',
+  glutes: 'Glutes', calves: 'Calves', core: 'Core', full_body: 'Full Body',
+};
 
 function ProgramForm({
   initial,
@@ -18,16 +29,14 @@ function ProgramForm({
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [muscleTags, setMuscleTags] = useState<string[]>(initial?.muscle_tags ?? []);
-  const [tagInput, setTagInput] = useState('');
   const [entries, setEntries] = useState<ProgramExerciseEntry[]>(initial?.exercises ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
 
-  const addTag = () => {
-    const t = tagInput.trim().toLowerCase();
-    if (t && !muscleTags.includes(t)) { setMuscleTags([...muscleTags, t]); setTagInput(''); }
+  const toggleTag = (t: string) => {
+    setMuscleTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
   };
-  const removeTag = (t: string) => setMuscleTags(muscleTags.filter((x) => x !== t));
   const addEntry = () => setEntries([...entries, { exercise_id: '', sets: 3, target_reps_or_duration: 10, rest_time_after_sec: 60 }]);
   const updateEntry = (i: number, patch: Partial<ProgramExerciseEntry>) => setEntries(entries.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
   const removeEntry = (i: number) => setEntries(entries.filter((_, idx) => idx !== i));
@@ -60,19 +69,51 @@ function ProgramForm({
       </div>
       <div>
         <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Muscle Tags</label>
+        {/* Selected tags */}
         <div className="flex flex-wrap gap-1.5">
           {muscleTags.map((t) => (
             <span key={t} className="flex items-center gap-1 rounded-full bg-neon/15 px-2.5 py-1 text-[11px] font-bold text-neon">
-              {t}
-              <button type="button" onClick={() => removeTag(t)} className="text-neon/60 hover:text-neon"><X size={12} /></button>
+              {TAG_LABELS[t] || t}
+              <button type="button" onClick={() => toggleTag(t)} className="text-neon/60 hover:text-neon"><X size={12} /></button>
             </span>
           ))}
         </div>
-        <div className="mt-2 flex gap-2">
-          <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-            placeholder="Add tag..." className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-paper placeholder-ash/50 outline-none focus:border-neon/40" />
-          <button type="button" onClick={addTag} className="rounded-xl bg-white/5 px-3 py-2 text-xs font-bold text-ash hover:bg-white/10">Add</button>
+        {/* Dropdown selector */}
+        <div className="relative mt-2">
+          <button
+            type="button"
+            onClick={() => setShowTagDropdown(!showTagDropdown)}
+            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-ash transition-colors hover:border-neon/30"
+          >
+            <span>{muscleTags.length > 0 ? `${muscleTags.length} selected` : 'Select tags...'}</span>
+            <ChevronDown size={14} className={`transition-transform ${showTagDropdown ? 'rotate-180' : ''}`} />
+          </button>
+          {showTagDropdown && (
+            <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-xl border border-white/10 bg-surface shadow-lg">
+              <div className="max-h-48 overflow-y-auto p-1">
+                {PREDEFINED_TAGS.map((tag) => {
+                  const selected = muscleTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                        selected ? 'bg-neon/10 text-neon' : 'text-paper hover:bg-white/[0.07]'
+                      }`}
+                    >
+                      <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        selected ? 'border-neon bg-neon' : 'border-white/20'
+                      }`}>
+                        {selected && <Check size={10} className="text-ink" />}
+                      </div>
+                      {TAG_LABELS[tag] || tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <div>

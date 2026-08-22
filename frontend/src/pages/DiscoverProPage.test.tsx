@@ -10,6 +10,7 @@ vi.mock('../api/client', () => ({
   api: {
     getPublicPrograms: vi.fn().mockResolvedValue([]),
     cloneProgram: vi.fn().mockResolvedValue({ id: 'new-routine-1', name: 'Cloned', exercises: [], schedule_days: null, created_at: '' }),
+    getExercises: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -50,6 +51,11 @@ describe('DiscoverProPage', () => {
     vi.mocked(api.getPublicPrograms).mockReset();
     vi.mocked(api.cloneProgram).mockReset();
     vi.mocked(api.cloneProgram).mockResolvedValue({ id: 'new-routine-1', name: 'Cloned', exercises: [], schedule_days: null, created_at: '' });
+    vi.mocked(api.getExercises).mockReset();
+    vi.mocked(api.getExercises).mockResolvedValue([
+      { id: 'ex-1', name_translations: { en: 'Push-ups' }, primary_muscle: 'chest', movement_pattern: 'push', equipment_required: 'bodyweight', boost_type: 'VISION_REP', animation_url: null, instructions: null, is_active: true },
+      { id: 'ex-2', name_translations: { en: 'Squats' }, primary_muscle: 'quadriceps', movement_pattern: 'squat', equipment_required: 'bodyweight', boost_type: 'VISION_REP', animation_url: null, instructions: null, is_active: true },
+    ]);
   });
 
   it('renders loading state initially', async () => {
@@ -70,19 +76,34 @@ describe('DiscoverProPage', () => {
     vi.mocked(api.getPublicPrograms).mockResolvedValue(MOCK_PROGRAMS);
     renderDiscover();
     await screen.findByText('Home Push');
-    // Click "Home" filter — should still show Home Push
-    const homeButton = screen.getByRole('button', { name: /home/i });
-    await userEvent.click(homeButton);
+    // Click the "Home" filter button (first button with that name)
+    const homeButtons = screen.getAllByRole('button', { name: /home/i });
+    await userEvent.click(homeButtons[0]);
     expect(screen.getByText('Home Push')).toBeInTheDocument();
     expect(screen.queryByText('Gym Squat')).not.toBeInTheDocument();
   });
 
-  it('clone button calls api.cloneProgram', async () => {
+  it('opens preview modal when clicking a program card', async () => {
     vi.mocked(api.getPublicPrograms).mockResolvedValue(MOCK_PROGRAMS);
     renderDiscover();
     await screen.findByText('Home Push');
-    const addButtons = screen.getAllByText('Add to My Flows');
-    await userEvent.click(addButtons[0]);
+    // Click the Home Push card
+    await userEvent.click(screen.getByText('Home Push'));
+    // Modal should appear with exercise details
+    expect(await screen.findByText('Push-ups')).toBeInTheDocument();
+    expect(screen.getByText('3 sets')).toBeInTheDocument();
+    expect(screen.getByText('10 reps')).toBeInTheDocument();
+  });
+
+  it('clone button in modal calls api.cloneProgram', async () => {
+    vi.mocked(api.getPublicPrograms).mockResolvedValue(MOCK_PROGRAMS);
+    renderDiscover();
+    await screen.findByText('Home Push');
+    // Open modal
+    await userEvent.click(screen.getByText('Home Push'));
+    // Click Add to My Flows inside modal
+    const addButton = await screen.findByText('Add to My Flows');
+    await userEvent.click(addButton);
     expect(api.cloneProgram).toHaveBeenCalledWith('prog-1');
   });
 
@@ -107,15 +128,41 @@ describe('DiscoverProPage', () => {
     vi.mocked(api.getPublicPrograms).mockResolvedValue(MOCK_PROGRAMS);
     renderDiscover();
     await screen.findByText('Home Push');
-    const addButtons = screen.getAllByText('Add to My Flows');
-    await userEvent.click(addButtons[0]);
-    // After clone succeeds, button text changes to "Added!"
-    expect(await screen.findByText('Added!')).toBeInTheDocument();
+    // Open modal and clone
+    await userEvent.click(screen.getByText('Home Push'));
+    const addButton = await screen.findByText('Add to My Flows');
+    await userEvent.click(addButton);
+    // Clone was called
+    expect(api.cloneProgram).toHaveBeenCalledWith('prog-1');
+    // After clone succeeds, modal closes and navigates to builder
+    expect(await screen.findByText('Builder Page')).toBeInTheDocument();
   });
 
   it('shows empty state when no programs available', async () => {
     vi.mocked(api.getPublicPrograms).mockResolvedValue([]);
     renderDiscover();
     expect(await screen.findByText('No programs found')).toBeInTheDocument();
+  });
+
+  it('shows description in preview modal', async () => {
+    vi.mocked(api.getPublicPrograms).mockResolvedValue(MOCK_PROGRAMS);
+    renderDiscover();
+    await screen.findByText('Home Push');
+    await userEvent.click(screen.getByText('Home Push'));
+    // Description appears on card AND in modal — use getAllByText
+    const descriptions = screen.getAllByText('Bodyweight push workout');
+    expect(descriptions.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('can close preview modal', async () => {
+    vi.mocked(api.getPublicPrograms).mockResolvedValue(MOCK_PROGRAMS);
+    renderDiscover();
+    await screen.findByText('Home Push');
+    await userEvent.click(screen.getByText('Home Push'));
+    await screen.findByText('Push-ups');
+    // Close modal by clicking the backdrop (dialog overlay)
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(dialog);
+    expect(screen.queryByText('Push-ups')).not.toBeInTheDocument();
   });
 });
