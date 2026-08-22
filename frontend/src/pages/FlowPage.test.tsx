@@ -32,6 +32,10 @@ function BuilderMarker() {
   return <div>Builder Page</div>;
 }
 
+function DiscoverMarker() {
+  return <div>Discover Page</div>;
+}
+
 function renderFlow() {
   return render(
     <MemoryRouter initialEntries={['/']}>
@@ -39,6 +43,7 @@ function renderFlow() {
         <Route path="/" element={<FlowPage />} />
         <Route path="/builder" element={<BuilderMarker />} />
         <Route path="/builder/:routine_id" element={<BuilderMarker />} />
+        <Route path="/discover" element={<DiscoverMarker />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -348,5 +353,17 @@ describe('FlowPage', () => {
 
     expect(api.deleteRoutine).toHaveBeenCalledWith('r-1');
     expect(await screen.findByText(/haven't built any flows yet/i)).toBeInTheDocument();
+  });
+
+  it('shows Discover Pro Programs button', () => {
+    renderFlow();
+    expect(screen.getByText('Discover Pro Programs')).toBeInTheDocument();
+  });
+
+  it('navigates to discover page when Discover button is clicked', async () => {
+    const user = userEvent.setup();
+    renderFlow();
+    await user.click(screen.getByText('Discover Pro Programs'));
+    expect(await screen.findByText('Discover Page')).toBeInTheDocument();
   });
 });

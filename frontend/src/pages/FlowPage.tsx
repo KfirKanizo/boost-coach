@@ -291,6 +291,17 @@ export function FlowPage() {
             </span>
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => navigate('/discover')}
+          className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-card border border-white/[0.06] bg-surface py-3.5 text-ash transition-all hover:bg-white/[0.07] hover:text-paper active:scale-[0.98]"
+        >
+          <Dumbbell size={18} />
+          <span className="text-xs font-bold uppercase tracking-wider">
+            Discover Pro Programs
+          </span>
+        </button>
       </div>
 
       {selectedRoutine && (

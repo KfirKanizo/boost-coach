@@ -112,12 +112,13 @@ export interface ProgramExerciseEntry {
   rest_time_after_sec: number;
 }
 
-/** Pre-built program returned by admin endpoints. */
+/** Pre-built program returned by admin and public endpoints. */
 export interface PreBuiltProgram {
   id: string;
   title: string;
   description: string;
   muscle_tags: string[];
+  equipment_category: string;
   exercises: ProgramExerciseEntry[];
   is_active: boolean;
 }
@@ -127,6 +128,7 @@ export interface PreBuiltProgramCreate {
   title: string;
   description?: string;
   muscle_tags?: string[];
+  equipment_category?: string;
   exercises?: ProgramExerciseEntry[];
   is_active?: boolean;
 }
@@ -136,6 +138,7 @@ export interface PreBuiltProgramUpdate {
   title?: string;
   description?: string;
   muscle_tags?: string[];
+  equipment_category?: string;
   exercises?: ProgramExerciseEntry[];
   is_active?: boolean;
 }
@@ -438,6 +441,18 @@ export const api = {
   /** DELETE /admin/programs/:id — delete a pre-built program. */
   async deleteAdminProgram(programId: string): Promise<void> {
     await request(`/admin/programs/${programId}`, { method: 'DELETE' });
+  },
+
+  // ── Public program discovery ─────────────────────────────────────
+
+  /** GET /programs — list active pre-built programs (any authenticated user). */
+  getPublicPrograms(): Promise<PreBuiltProgram[]> {
+    return request<PreBuiltProgram[]>('/programs');
+  },
+
+  /** POST /flows/clone/:programId — clone a pre-built program into a custom routine. */
+  cloneProgram(programId: string): Promise<RoutineItem> {
+    return request<RoutineItem>(`/flows/clone/${programId}`, { method: 'POST' });
   },
 
   // -- Legacy boost stubs (kept for studio components compilation) --

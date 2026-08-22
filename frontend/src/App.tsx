@@ -7,6 +7,7 @@ import { AdminManageExercises } from './pages/AdminManageExercises';
 import { AdminManagePrograms } from './pages/AdminManagePrograms';
 import { AdminPage } from './pages/AdminPage';
 import { CoachPage } from './pages/CoachPage';
+import { DiscoverProPage } from './pages/DiscoverProPage';
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage';
 import { ExerciseStudioPage } from './pages/ExerciseStudioPage';
 import { FlowPage } from './pages/FlowPage';
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/exercise/:exercise_id" element={<ExerciseStudioPage />} />
         <Route path="/admin/exercises" element={<AdminManageExercises />} />
         <Route path="/admin/programs" element={<AdminManagePrograms />} />
+        <Route path="/discover" element={<DiscoverProPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

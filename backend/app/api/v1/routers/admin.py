@@ -132,6 +132,7 @@ async def create_program(
         title=body.title,
         description=body.description,
         muscle_tags=body.muscle_tags,
+        equipment_category=body.equipment_category,
         exercises=body.exercises,
         is_active=body.is_active,
     )
@@ -182,6 +183,8 @@ async def update_program(
         program.description = body.description
     if body.muscle_tags is not None:
         program.muscle_tags = body.muscle_tags
+    if body.equipment_category is not None:
+        program.equipment_category = body.equipment_category
     if body.exercises is not None:
         program.exercises = body.exercises
     if body.is_active is not None:

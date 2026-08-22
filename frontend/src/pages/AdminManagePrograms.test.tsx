@@ -22,6 +22,7 @@ function mockProgram(overrides: Partial<PreBuiltProgram> = {}): PreBuiltProgram 
     title: 'Full Body Blast',
     description: 'A complete full body workout',
     muscle_tags: ['chest', 'back', 'legs'],
+    equipment_category: 'gym',
     exercises: [
       { exercise_id: 'ex-001', sets: 3, target_reps_or_duration: 10, rest_time_after_sec: 60 },
     ],

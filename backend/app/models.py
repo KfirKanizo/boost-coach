@@ -110,6 +110,9 @@ class PreBuiltProgram(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False, default="")
     muscle_tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    equipment_category: Mapped[str] = mapped_column(
+        String, nullable=False, default="gym"
+    )
     exercises: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list
     )

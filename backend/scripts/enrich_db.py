@@ -1,11 +1,12 @@
-"""Insert missing foundational bodyweight exercises into the database.
+"""Insert missing foundational bodyweight exercises and pre-built programs.
 
 Run inside the api container::
 
     docker compose run --rm api python -m scripts.enrich_db
 
 Idempotent — safe to run multiple times.  Existing exercises are matched by
-English name and skipped if already present.
+English name and skipped if already present.  Pre-built programs are matched
+by title and skipped if already present.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ if _backend_root not in sys.path:
 from sqlalchemy import select  # noqa: E402
 
 from app.database import async_session_factory  # noqa: E402
-from app.models import Exercise  # noqa: E402
+from app.models import Exercise, PreBuiltProgram  # noqa: E402
 
 EXERCISES: list[dict] = [
     {
@@ -174,6 +175,171 @@ async def enrich() -> None:
 
         await session.commit()
         print(f"Inserted {inserts} new exercises.")
+
+        # ── Pre-built programs ──────────────────────────────────────────
+        await _seed_programs(session)
+
+
+# ── Pre-built programs ────────────────────────────────────────────────
+
+PROGRAMS: list[dict] = [
+    # ── Home / Bodyweight programs ────────────────────────────────────
+    {
+        "title": "Full Body Burn",
+        "description": "Complete bodyweight workout targeting every major muscle group. No equipment needed.",
+        "muscle_tags": ["chest", "quadriceps", "core", "back"],
+        "equipment_category": "home",
+        "exercises": [
+            {"exercise_name": "Standard Push-Up", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Bodyweight Lunge", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 45, "rest_seconds": 60},
+            {"exercise_name": "Plank", "sets": 3, "target_reps_or_duration": 30, "rest_time_after_sec": 45, "rest_seconds": 60},
+            {"exercise_name": "Bodyweight Calf Raise", "sets": 3, "target_reps_or_duration": 15, "rest_time_after_sec": 0, "rest_seconds": 60},
+            {"exercise_name": "Mountain Climber", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    {
+        "title": "Push Day Essentials",
+        "description": "Focus on chest, shoulders, and triceps using only your bodyweight.",
+        "muscle_tags": ["chest", "shoulders"],
+        "equipment_category": "home",
+        "exercises": [
+            {"exercise_name": "Standard Push-Up", "sets": 4, "target_reps_or_duration": 12, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Pike Push-Up", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Bench Dip", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    {
+        "title": "Leg Day at Home",
+        "description": "Build lower body strength with bodyweight squats, lunges, and calf raises.",
+        "muscle_tags": ["quadriceps", "calves"],
+        "equipment_category": "home",
+        "exercises": [
+            {"exercise_name": "Bodyweight Lunge", "sets": 4, "target_reps_or_duration": 10, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Bulgarian Split Squat", "sets": 3, "target_reps_or_duration": 8, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Bodyweight Calf Raise", "sets": 4, "target_reps_or_duration": 15, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    {
+        "title": "Core Crusher",
+        "description": "Intense core-focused routine using bodyweight exercises. Plank, crunches, and more.",
+        "muscle_tags": ["core"],
+        "equipment_category": "home",
+        "exercises": [
+            {"exercise_name": "Plank", "sets": 3, "target_reps_or_duration": 30, "rest_time_after_sec": 45, "rest_seconds": 60},
+            {"exercise_name": "Mountain Climber", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 45, "rest_seconds": 60},
+            {"exercise_name": "Crunch", "sets": 3, "target_reps_or_duration": 15, "rest_time_after_sec": 45, "rest_seconds": 60},
+            {"exercise_name": "Russian Twist", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    # ── Gym / Weights programs ────────────────────────────────────────
+    {
+        "title": "Hypertrophy Chest",
+        "description": "Classic bodybuilding chest day with barbell, dumbbells, and cables.",
+        "muscle_tags": ["chest", "shoulders"],
+        "equipment_category": "gym",
+        "exercises": [
+            {"exercise_name": "Barbell Bench Press", "sets": 4, "target_reps_or_duration": 8, "rest_time_after_sec": 90, "rest_seconds": 90},
+            {"exercise_name": "Incline Barbell Bench Press", "sets": 3, "target_reps_or_duration": 8, "rest_time_after_sec": 90, "rest_seconds": 90},
+            {"exercise_name": "Dumbbell Fly", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Cable Crossover", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    {
+        "title": "Back & Biceps Blast",
+        "description": "Pull day focusing on lats, rhomboids, and biceps with compound and isolation movements.",
+        "muscle_tags": ["back", "biceps"],
+        "equipment_category": "gym",
+        "exercises": [
+            {"exercise_name": "Barbell Bent Over Row", "sets": 4, "target_reps_or_duration": 8, "rest_time_after_sec": 90, "rest_seconds": 90},
+            {"exercise_name": "Lat Pulldown", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Dumbbell Row", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Barbell Curl", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    {
+        "title": "Heavy Squat Day",
+        "description": "Build serious leg strength with barbell squats, Bulgarian split squats, and calf raises.",
+        "muscle_tags": ["quadriceps", "calves"],
+        "equipment_category": "gym",
+        "exercises": [
+            {"exercise_name": "Barbell Back Squat", "sets": 5, "target_reps_or_duration": 5, "rest_time_after_sec": 120, "rest_seconds": 120},
+            {"exercise_name": "Bulgarian Split Squat", "sets": 3, "target_reps_or_duration": 8, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Leg Extension", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Standing Calf Raise", "sets": 4, "target_reps_or_duration": 12, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    {
+        "title": "Shoulder Sculpt",
+        "description": "Complete shoulder development with overhead press, raises, and lateral work.",
+        "muscle_tags": ["shoulders"],
+        "equipment_category": "gym",
+        "exercises": [
+            {"exercise_name": "Barbell Overhead Press", "sets": 4, "target_reps_or_duration": 8, "rest_time_after_sec": 90, "rest_seconds": 90},
+            {"exercise_name": "Dumbbell Overhead Press", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Lateral Raise", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 45, "rest_seconds": 60},
+            {"exercise_name": "Arnold Press", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+    {
+        "title": "Arms Pump",
+        "description": "Biceps and triceps isolation workout for arm hypertrophy.",
+        "muscle_tags": ["biceps"],
+        "equipment_category": "gym",
+        "exercises": [
+            {"exercise_name": "Barbell Curl", "sets": 4, "target_reps_or_duration": 8, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Hammer Curl", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 45, "rest_seconds": 60},
+            {"exercise_name": "Cable Triceps Pushdown", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 60, "rest_seconds": 60},
+            {"exercise_name": "Overhead Triceps Extension", "sets": 3, "target_reps_or_duration": 10, "rest_time_after_sec": 0, "rest_seconds": 60},
+        ],
+    },
+]
+
+
+async def _seed_programs(session) -> None:
+    """Insert pre-built programs, looking up exercise IDs by English name."""
+    from app.models import Exercise
+
+    existing_titles = set(
+        row.title for row in (await session.scalars(select(PreBuiltProgram))).all()
+    )
+
+    # Build exercise name → id lookup from DB
+    all_exercises = (await session.scalars(select(Exercise))).all()
+    name_to_id: dict[str, str] = {
+        ex.name_translations.get("en", ""): str(ex.id) for ex in all_exercises
+    }
+
+    inserts = 0
+    for prog in PROGRAMS:
+        if prog["title"] in existing_titles:
+            continue
+
+        # Resolve exercise IDs
+        resolved_exercises = []
+        for entry in prog["exercises"]:
+            ex_name = entry.pop("exercise_name")
+            ex_id = name_to_id.get(ex_name)
+            if ex_id is None:
+                print(f"  WARNING: exercise '{ex_name}' not found, skipping program '{prog['title']}'")
+                break
+            entry["exercise_id"] = ex_id
+            resolved_exercises.append(entry)
+        else:
+            # Only insert if all exercises resolved
+            session.add(
+                PreBuiltProgram(
+                    title=prog["title"],
+                    description=prog["description"],
+                    muscle_tags=prog["muscle_tags"],
+                    equipment_category=prog["equipment_category"],
+                    exercises=resolved_exercises,
+                    is_active=True,
+                )
+            )
+            inserts += 1
+
+    await session.commit()
+    print(f"Inserted {inserts} new pre-built programs.")
 
 
 if __name__ == "__main__":
