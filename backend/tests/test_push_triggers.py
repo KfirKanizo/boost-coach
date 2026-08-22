@@ -30,9 +30,7 @@ async def _seed_user(db_session, email: str = DEFAULT_EMAIL) -> User:
 async def _seed_push_subscription(db_session, user_id: uuid.UUID) -> PushSubscription:
     sub = PushSubscription(
         user_id=user_id,
-        endpoint="https://fcm.googleapis.com/fcm/send/test-trigger-endpoint",
-        p256dh="test-p256dh",
-        auth="test-auth",
+        fcm_token="test-fcm-token-trigger",
     )
     db_session.add(sub)
     await db_session.flush()

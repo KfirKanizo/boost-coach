@@ -1,15 +1,13 @@
 """Push notification request/response schemas."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class PushSubscriptionRequest(BaseModel):
-    endpoint: str = Field(min_length=1)
-    p256dh: str = Field(min_length=1)
-    auth: str = Field(min_length=1)
+    fcm_token: str = Field(min_length=1)
 
 
 class PushSendRequest(BaseModel):

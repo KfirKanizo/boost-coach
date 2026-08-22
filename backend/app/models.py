@@ -223,7 +223,7 @@ class WorkoutSession(Base):
 
 
 class PushSubscription(Base):
-    """Web Push subscription — one row per browser/device endpoint."""
+    """FCM push token — one row per device."""
 
     __tablename__ = "push_subscriptions"
 
@@ -233,9 +233,7 @@ class PushSubscription(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), index=True
     )
-    endpoint: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    p256dh: Mapped[str] = mapped_column(String, nullable=False)
-    auth: Mapped[str] = mapped_column(String, nullable=False)
+    fcm_token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow
     )

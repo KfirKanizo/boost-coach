@@ -1,10 +1,11 @@
 """Tests for push notification endpoints:
 
-POST /api/v1/push/subscribe — save/update a push subscription.
+POST /api/v1/push/subscribe — save/update an FCM token.
 POST /api/v1/push/send      — dispatch push notifications to users.
 """
 
 import uuid
+from unittest.mock import AsyncMock, patch
 
 from app.models import PushSubscription, User
 
@@ -30,27 +31,22 @@ async def test_subscribe_creates_subscription(async_client, db_session) -> None:
     resp = await async_client.post(
         "/api/v1/push/subscribe",
         headers=headers,
-        json={
-            "endpoint": "https://fcm.googleapis.com/fcm/send/test-endpoint-1",
-            "p256dh": "test-p256dh-key",
-            "auth": "test-auth-secret",
-        },
+        json={"fcm_token": "test-fcm-token-1"},
     )
     assert resp.status_code == 204
 
-    # Verify in DB
+    from sqlalchemy import select
+
     sub = await db_session.scalar(
         select(PushSubscription).where(
-            PushSubscription.endpoint == "https://fcm.googleapis.com/fcm/send/test-endpoint-1"
+            PushSubscription.fcm_token == "test-fcm-token-1"
         )
     )
     assert sub is not None
-    assert sub.p256dh == "test-p256dh-key"
-    assert sub.auth == "test-auth-secret"
 
 
-async def test_subscribe_updates_existing_endpoint(async_client, db_session) -> None:
-    """Same endpoint from a different user should transfer ownership."""
+async def test_subscribe_updates_existing_fcm_token(async_client, db_session) -> None:
+    """Same FCM token from a different user should transfer ownership."""
     user1 = User(email="user1@push.test")
     user2 = User(email="user2@push.test")
     db_session.add_all([user1, user2])
@@ -60,43 +56,32 @@ async def test_subscribe_updates_existing_endpoint(async_client, db_session) -> 
     await async_client.post(
         "/api/v1/push/subscribe",
         headers=headers1,
-        json={
-            "endpoint": "https://fcm.googleapis.com/fcm/send/shared-endpoint",
-            "p256dh": "key-v1",
-            "auth": "auth-v1",
-        },
+        json={"fcm_token": "shared-fcm-token"},
     )
 
     headers2 = await login_headers(async_client, db_session, "user2@push.test")
     resp = await async_client.post(
         "/api/v1/push/subscribe",
         headers=headers2,
-        json={
-            "endpoint": "https://fcm.googleapis.com/fcm/send/shared-endpoint",
-            "p256dh": "key-v2",
-            "auth": "auth-v2",
-        },
+        json={"fcm_token": "shared-fcm-token"},
     )
     assert resp.status_code == 204
 
+    from sqlalchemy import select
+
     sub = await db_session.scalar(
         select(PushSubscription).where(
-            PushSubscription.endpoint == "https://fcm.googleapis.com/fcm/send/shared-endpoint"
+            PushSubscription.fcm_token == "shared-fcm-token"
         )
     )
     assert sub is not None
     assert sub.user_id == user2.id
-    assert sub.p256dh == "key-v2"
 
 
 async def test_subscribe_requires_auth(async_client) -> None:
     resp = await async_client.post(
         "/api/v1/push/subscribe",
-        json={
-            "endpoint": "https://fcm.googleapis.com/fcm/send/no-auth",
-            "p256dh": "key",
-            "auth": "auth",
-        },
+        json={"fcm_token": "no-auth-token"},
     )
     assert resp.status_code == 401
 
@@ -104,8 +89,8 @@ async def test_subscribe_requires_auth(async_client) -> None:
 # ── POST /push/send ──────────────────────────────────────────────────
 
 
-async def test_send_push_no_vapid_returns_503(async_client, db_session) -> None:
-    """Without VAPID_PRIVATE_KEY configured, /send should 503."""
+async def test_send_push_no_firebase_returns_503(async_client, db_session) -> None:
+    """Without FIREBASE_CREDENTIALS_PATH configured, /send should 503."""
     await _seed_user(db_session)
     headers = await login_headers(async_client, db_session)
 
@@ -124,31 +109,32 @@ async def test_send_push_no_vapid_returns_503(async_client, db_session) -> None:
 async def test_send_push_no_subscriptions_returns_zeros(
     async_client, db_session
 ) -> None:
-    """With VAPID configured but no subscriptions, sent=failed=removed=0."""
+    """With Firebase configured but no subscriptions, sent=failed=removed=0."""
     from app.core.config import settings
 
     await _seed_user(db_session)
     headers = await login_headers(async_client, db_session)
 
-    original_key = settings.vapid_private_key
-    settings.vapid_private_key = "test-private-key"
+    original = settings.firebase_credentials_path
+    settings.firebase_credentials_path = "/tmp/fake-creds.json"
     try:
-        resp = await async_client.post(
-            "/api/v1/push/send",
-            headers=headers,
-            json={
-                "user_ids": [str(uuid.uuid4())],
-                "title": "Test",
-                "body": "Hello",
-            },
-        )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["sent"] == 0
-        assert body["failed"] == 0
-        assert body["removed"] == 0
+        with patch("app.api.v1.routers.push._get_firebase_app", return_value=True):
+            resp = await async_client.post(
+                "/api/v1/push/send",
+                headers=headers,
+                json={
+                    "user_ids": [str(uuid.uuid4())],
+                    "title": "Test",
+                    "body": "Hello",
+                },
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["sent"] == 0
+            assert body["failed"] == 0
+            assert body["removed"] == 0
     finally:
-        settings.vapid_private_key = original_key
+        settings.firebase_credentials_path = original
 
 
 async def test_send_push_requires_auth(async_client) -> None:
@@ -174,11 +160,7 @@ async def test_subscribe_persists_multiple_subscriptions(
         resp = await async_client.post(
             "/api/v1/push/subscribe",
             headers=headers,
-            json={
-                "endpoint": f"https://fcm.googleapis.com/fcm/send/device-{i}",
-                "p256dh": f"key-{i}",
-                "auth": f"auth-{i}",
-            },
+            json={"fcm_token": f"device-token-{i}"},
         )
         assert resp.status_code == 204
 
@@ -188,10 +170,6 @@ async def test_subscribe_persists_multiple_subscriptions(
         select(func.count()).select_from(PushSubscription)
     )
     assert count == 3
-
-
-# Need to import select for the DB queries in tests
-from sqlalchemy import select
 
 
 # ── POST /push/send — send_to_all broadcast ─────────────────────────
@@ -204,27 +182,30 @@ async def test_send_push_broadcast_no_subscriptions(async_client, db_session) ->
     await _seed_user(db_session)
     headers = await login_headers(async_client, db_session)
 
-    original_key = settings.vapid_private_key
-    settings.vapid_private_key = "test-private-key"
+    original = settings.firebase_credentials_path
+    settings.firebase_credentials_path = "/tmp/fake-creds.json"
     try:
-        resp = await async_client.post(
-            "/api/v1/push/send",
-            headers=headers,
-            json={
-                "send_to_all": True,
-                "title": "Broadcast",
-                "body": "Hello everyone",
-            },
-        )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["sent"] == 0
+        with patch("app.api.v1.routers.push._get_firebase_app", return_value=True):
+            resp = await async_client.post(
+                "/api/v1/push/send",
+                headers=headers,
+                json={
+                    "send_to_all": True,
+                    "title": "Broadcast",
+                    "body": "Hello everyone",
+                },
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["sent"] == 0
     finally:
-        settings.vapid_private_key = original_key
+        settings.firebase_credentials_path = original
 
 
-async def test_send_push_broadcast_no_vapid_returns_503(async_client, db_session) -> None:
-    """send_to_all without VAPID configured should 503."""
+async def test_send_push_broadcast_no_firebase_returns_503(
+    async_client, db_session
+) -> None:
+    """send_to_all without Firebase configured should 503."""
     await _seed_user(db_session)
     headers = await login_headers(async_client, db_session)
 
@@ -249,20 +230,21 @@ async def test_send_push_empty_user_ids_requires_send_to_all(
     await _seed_user(db_session)
     headers = await login_headers(async_client, db_session)
 
-    original_key = settings.vapid_private_key
-    settings.vapid_private_key = "test-private-key"
+    original = settings.firebase_credentials_path
+    settings.firebase_credentials_path = "/tmp/fake-creds.json"
     try:
-        resp = await async_client.post(
-            "/api/v1/push/send",
-            headers=headers,
-            json={
-                "user_ids": [],
-                "title": "Test",
-                "body": "Hello",
-            },
-        )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["sent"] == 0
+        with patch("app.api.v1.routers.push._get_firebase_app", return_value=True):
+            resp = await async_client.post(
+                "/api/v1/push/send",
+                headers=headers,
+                json={
+                    "user_ids": [],
+                    "title": "Test",
+                    "body": "Hello",
+                },
+            )
+            assert resp.status_code == 200
+            body = resp.json()
+            assert body["sent"] == 0
     finally:
-        settings.vapid_private_key = original_key
+        settings.firebase_credentials_path = original

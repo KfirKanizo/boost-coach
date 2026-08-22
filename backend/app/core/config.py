@@ -75,16 +75,11 @@ class Settings(BaseSettings):
         ),
     )
 
-    # --- Web Push (VAPID) -----------------------------------------------
-    vapid_private_key: str = Field(
+    # --- Firebase Cloud Messaging (FCM) ----------------------------------
+    firebase_credentials_path: str = Field(
         default="",
-        validation_alias=AliasChoices("VAPID_PRIVATE_KEY"),
-        description="VAPID private key for Web Push authentication (base64url).",
-    )
-    vapid_claims_email: str = Field(
-        default="mailto:admin@fit.idone.co.il",
-        validation_alias=AliasChoices("VAPID_CLAIMS_EMAIL"),
-        description="Contact email sent in VAPID JWT claims.",
+        validation_alias=AliasChoices("FIREBASE_CREDENTIALS_PATH"),
+        description="Path to the Firebase Admin SDK service-account JSON file.",
     )
 
 

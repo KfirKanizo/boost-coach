@@ -25,6 +25,7 @@ import {
   enablePushNotifications,
   disablePushNotifications,
   isPushEnabled,
+  pushSupported as isPushNativeSupported,
 } from '../services/pushNotifications';
 import {
   getProfileName,
@@ -174,7 +175,7 @@ export function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Push notification state
-  const [pushSupported, setPushSupported] = useState(false);
+  const [pushNative, setPushNative] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
 
@@ -206,9 +207,9 @@ export function ProfilePage() {
 
     // Check push notification support and current state
     const checkPush = async () => {
-      const supported = 'Notification' in window && 'PushManager' in window;
-      setPushSupported(supported);
-      if (supported) {
+      const native = isPushNativeSupported();
+      setPushNative(native);
+      if (native) {
         setPushEnabled(await isPushEnabled());
       }
     };
@@ -656,7 +657,7 @@ export function ProfilePage() {
               Notifications
             </h2>
             <div className="rounded-card bg-surface p-4">
-              {!pushSupported ? (
+              {!pushNative ? (
                 <div className="flex items-center gap-4">
                   <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/5 text-ash">
                     <BellOff size={20} />
@@ -666,7 +667,7 @@ export function ProfilePage() {
                       Push Notifications
                     </span>
                     <span className="block text-xs text-ash">
-                      Enable on the web version over HTTPS to receive alerts
+                      Available on the Android app
                     </span>
                   </div>
                 </div>

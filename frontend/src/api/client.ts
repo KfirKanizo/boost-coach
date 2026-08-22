@@ -84,11 +84,9 @@ export interface GamificationStats {
   activity_days: string[];
 }
 
-/** Web Push subscription payload sent to the backend. */
+/** FCM push token payload sent to the backend. */
 export interface PushSubscriptionPayload {
-  endpoint: string;
-  p256dh: string;
-  auth: string;
+  fcm_token: string;
 }
 
 /** System-wide metrics returned by GET /admin/stats. */

@@ -1,116 +1,98 @@
 /**
- * Web Push notification helpers.
+ * Capacitor Push Notifications helpers.
  *
- * Handles service-worker registration, permission requests, subscription
- * generation, and communicating the subscription to the backend.
+ * Uses @capacitor/push-notifications for native Android push support.
+ * On web (unsupported), all functions return gracefully.
  */
 
+import { PushNotifications } from '@capacitor/push-notifications';
 import { api } from '../api/client';
 
-/** VAPID public key loaded from env. Falls back to empty string. */
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '';
-
-function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray.buffer;
+/**
+ * Platform detection: Capacitor native vs. web browser.
+ */
+function isNative(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).Capacitor;
 }
 
 /**
- * Register the service worker if supported and not already registered.
- * Returns the registration or null if unsupported.
+ * Register for push notifications and send the FCM token to the backend.
+ * Called once on app launch (after permission is granted).
  */
-export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (!('serviceWorker' in navigator)) return null;
+export async function registerForPush(): Promise<boolean> {
+  if (!isNative()) return false;
 
   try {
-    const registration = await navigator.serviceWorker.register('/service-worker.js', {
-      scope: '/',
-    });
-    return registration;
-  } catch (err) {
-    console.warn('Service worker registration failed:', err);
-    return null;
-  }
-}
+    const perm = await PushNotifications.requestPermissions();
+    if (perm.receive !== 'granted') return false;
 
-/**
- * Request notification permission, generate a push subscription,
- * and send it to the backend.
- *
- * Returns `true` on success, `false` if the user denied or the
- * environment lacks push support / VAPID key.
- */
-export async function enablePushNotifications(): Promise<boolean> {
-  if (!('Notification' in window) || !('PushManager' in window)) return false;
-  if (!VAPID_PUBLIC_KEY) {
-    console.warn('VITE_VAPID_PUBLIC_KEY not set — push notifications disabled');
+    await PushNotifications.register();
+
+    return await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => resolve(false), 10000);
+
+      PushNotifications.addListener('registration', async (token) => {
+        clearTimeout(timeout);
+        try {
+          await api.subscribePush({ fcm_token: token.value });
+          resolve(true);
+        } catch {
+          resolve(false);
+        }
+      });
+
+      PushNotifications.addListener('registrationError', () => {
+        clearTimeout(timeout);
+        resolve(false);
+      });
+    });
+  } catch {
     return false;
   }
-
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return false;
-
-  const registration = await registerServiceWorker();
-  if (!registration) return false;
-
-  const existing = await registration.pushManager.getSubscription();
-  if (existing) {
-    await sendSubscriptionToBackend(existing);
-    return true;
-  }
-
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-  });
-
-  await sendSubscriptionToBackend(subscription);
-  return true;
 }
 
 /**
- * Check whether push notifications are currently enabled
- * (permission granted + active subscription exists).
+ * Check whether push notifications are enabled.
+ * On native: checks if we have a stored token.
+ * On web: always returns false (web push not supported in this architecture).
  */
 export async function isPushEnabled(): Promise<boolean> {
-  if (!('Notification' in window) || !('PushManager' in window)) return false;
-  if (Notification.permission !== 'granted') return false;
+  if (!isNative()) return false;
 
-  const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.getSubscription();
-  return subscription !== null;
+  try {
+    const result = await PushNotifications.checkPermissions();
+    return result.receive === 'granted';
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Unsubscribe from push notifications and remove from backend.
+ * Unregister from push notifications (native only).
+ * Note: we don't delete the backend subscription — stale tokens are
+ * cleaned up automatically by FCM dispatch failures.
  */
 export async function disablePushNotifications(): Promise<boolean> {
-  if (!('Notification' in window) || !('PushManager' in window)) return false;
+  if (!isNative()) return false;
 
-  const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.getSubscription();
-  if (!subscription) return false;
-
-  await subscription.unsubscribe();
-  return true;
+  try {
+    await PushNotifications.unregister();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-async function sendSubscriptionToBackend(
-  subscription: PushSubscription,
-): Promise<void> {
-  const json = subscription.toJSON();
-  const keys = json.keys;
-  if (!json.endpoint || !keys?.p256dh || !keys?.auth) return;
+/**
+ * Enable push notifications (alias for registerForPush).
+ */
+export async function enablePushNotifications(): Promise<boolean> {
+  return registerForPush();
+}
 
-  await api.subscribePush({
-    endpoint: json.endpoint,
-    p256dh: keys.p256dh,
-    auth: keys.auth,
-  });
+/**
+ * Whether the current platform supports native push.
+ */
+export function pushSupported(): boolean {
+  return isNative();
 }
