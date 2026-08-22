@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
+  ChevronDown,
   Dumbbell,
+  LayoutGrid,
   Loader2,
+  Send,
   Shield,
   Users,
   Activity,
-  LayoutGrid,
-  Send,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { AdminStats } from '../api/client';
+
+const LINK_OPTIONS = [
+  { label: 'None (Default)', value: '' },
+  { label: 'The Flow', value: '/' },
+  { label: 'Exercises', value: '/exercises' },
+  { label: 'Stats', value: '/stats' },
+  { label: 'Profile', value: '/profile' },
+  { label: 'Discover Pro', value: '/discover' },
+] as const;
 
 function StatCard({
   label,
@@ -40,6 +50,7 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null);
 
   // ── Broadcast Push state ──────────────────────────────────────────
+  const [broadcastFormOpen, setBroadcastFormOpen] = useState(false);
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastBody, setBroadcastBody] = useState('');
   const [broadcastLink, setBroadcastLink] = useState('');
@@ -66,7 +77,14 @@ export function AdminPage() {
     void loadData();
   }, [loadData]);
 
-  const handleBroadcast = useCallback(async () => {
+  const resetBroadcastForm = useCallback(() => {
+    setBroadcastTitle('');
+    setBroadcastBody('');
+    setBroadcastLink('');
+    setBroadcastResult(null);
+  }, []);
+
+  const handleBroadcast = useCallback(() => {
     if (!broadcastTitle.trim() || !broadcastBody.trim()) return;
     setBroadcastConfirmOpen(true);
   }, [broadcastTitle, broadcastBody]);
@@ -80,18 +98,17 @@ export function AdminPage() {
         send_to_all: true,
         title: broadcastTitle.trim(),
         body: broadcastBody.trim(),
-        data: broadcastLink.trim() ? { link: broadcastLink.trim() } : undefined,
+        data: broadcastLink ? { link: broadcastLink } : undefined,
       });
       setBroadcastResult(`Sent to ${result.sent} devices (${result.failed} failed, ${result.removed} stale removed)`);
-      setBroadcastTitle('');
-      setBroadcastBody('');
-      setBroadcastLink('');
+      resetBroadcastForm();
+      setTimeout(() => { setBroadcastFormOpen(false); setBroadcastResult(null); }, 2000);
     } catch (err) {
       setBroadcastResult(err instanceof Error ? err.message : 'Broadcast failed');
     } finally {
       setBroadcastSending(false);
     }
-  }, [broadcastTitle, broadcastBody, broadcastLink]);
+  }, [broadcastTitle, broadcastBody, broadcastLink, resetBroadcastForm]);
 
   return (
     <div className="px-4 pb-28 pt-6">
@@ -205,68 +222,118 @@ export function AdminPage() {
                   </span>
                 </div>
               </button>
+
+              <button
+                type="button"
+                onClick={() => { resetBroadcastForm(); setBroadcastFormOpen(true); }}
+                className="group flex items-center gap-4 rounded-card bg-surface p-5 text-left transition-all hover:bg-white/[0.07] active:scale-[0.98]"
+              >
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 transition-colors group-hover:bg-amber-500/15">
+                  <Send size={22} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-paper">
+                    Broadcast Push
+                  </span>
+                  <span className="text-xs text-ash">
+                    Send push notifications to all users
+                  </span>
+                </div>
+              </button>
             </div>
           </section>
+        </>
+      )}
 
-          {/* Broadcast Push */}
-          <section className="mt-8">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
+      {/* Broadcast form modal */}
+      {broadcastFormOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Broadcast push notification"
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
+          onClick={() => { setBroadcastFormOpen(false); setBroadcastResult(null); }}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl border border-white/10 bg-surface/95 p-6 backdrop-blur-md sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-4 font-display text-lg font-bold text-paper">
               Broadcast Push
-            </h2>
-            <div className="rounded-card border border-white/[0.06] bg-surface p-4">
-              <div className="flex flex-col gap-3">
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Title</label>
-                  <input
-                    type="text"
-                    value={broadcastTitle}
-                    onChange={(e) => setBroadcastTitle(e.target.value)}
-                    placeholder="Notification title"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Body</label>
-                  <textarea
-                    value={broadcastBody}
-                    onChange={(e) => setBroadcastBody(e.target.value)}
-                    placeholder="Notification message..."
-                    rows={2}
-                    className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Link (optional)</label>
-                  <input
-                    type="text"
+            </h3>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Title</label>
+                <input
+                  type="text"
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  placeholder="Notification title"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Body</label>
+                <textarea
+                  value={broadcastBody}
+                  onChange={(e) => setBroadcastBody(e.target.value)}
+                  placeholder="Notification message..."
+                  rows={2}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ash">Link</label>
+                <div className="relative">
+                  <select
                     value={broadcastLink}
                     onChange={(e) => setBroadcastLink(e.target.value)}
-                    placeholder="/profile"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-paper placeholder-ash/50 outline-none focus:border-neon/40"
-                  />
+                    className="w-full appearance-none rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 pr-10 text-sm text-paper outline-none focus:border-neon/40"
+                  >
+                    {LINK_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ash" />
                 </div>
+              </div>
+
+              {broadcastResult && (
+                <p className={`rounded-xl px-4 py-2.5 text-xs font-semibold ${broadcastResult.includes('failed') ? 'bg-crimson/10 text-crimson' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                  {broadcastResult}
+                </p>
+              )}
+
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  disabled={broadcastSending || !broadcastTitle.trim() || !broadcastBody.trim()}
+                  onClick={() => { setBroadcastFormOpen(false); setBroadcastResult(null); }}
+                  className="flex-1 rounded-xl bg-white/5 py-3 text-sm font-bold text-paper transition-colors hover:bg-white/10 active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!broadcastTitle.trim() || !broadcastBody.trim() || broadcastSending}
                   onClick={() => void handleBroadcast()}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3 text-sm font-bold text-ink transition-colors hover:bg-amber-400 active:scale-[0.98] disabled:opacity-50"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 py-3 text-sm font-bold text-ink transition-colors hover:bg-amber-400 active:scale-[0.98] disabled:opacity-50"
                 >
                   {broadcastSending ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <Send size={16} />
                   )}
-                  {broadcastSending ? 'Sending...' : 'Send to All Users'}
+                  {broadcastSending ? 'Sending...' : 'Review & Send'}
                 </button>
-                {broadcastResult && (
-                  <p className={`text-xs font-semibold ${broadcastResult.includes('failed') ? 'text-crimson' : 'text-emerald-400'}`}>
-                    {broadcastResult}
-                  </p>
-                )}
               </div>
             </div>
-          </section>
-        </>
+          </div>
+        </div>
       )}
 
       {/* Broadcast confirmation modal */}
@@ -275,7 +342,7 @@ export function AdminPage() {
           role="dialog"
           aria-modal="true"
           aria-label="Confirm broadcast"
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-8 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-8 backdrop-blur-sm"
           onClick={() => setBroadcastConfirmOpen(false)}
         >
           <div
@@ -293,10 +360,10 @@ export function AdminPage() {
               <p className="mt-0.5 text-sm text-paper">{broadcastTitle.trim()}</p>
               <p className="mt-2 text-xs font-bold uppercase tracking-wider text-ash">Body</p>
               <p className="mt-0.5 text-sm text-paper">{broadcastBody.trim()}</p>
-              {broadcastLink.trim() && (
+              {broadcastLink && (
                 <>
                   <p className="mt-2 text-xs font-bold uppercase tracking-wider text-ash">Link</p>
-                  <p className="mt-0.5 text-sm text-neon">{broadcastLink.trim()}</p>
+                  <p className="mt-0.5 text-sm text-neon">{broadcastLink}</p>
                 </>
               )}
             </div>
