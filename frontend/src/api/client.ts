@@ -84,6 +84,13 @@ export interface GamificationStats {
   activity_days: string[];
 }
 
+/** Web Push subscription payload sent to the backend. */
+export interface PushSubscriptionPayload {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
 /** System-wide metrics returned by GET /admin/stats. */
 export interface AdminStats {
   total_users: number;
@@ -453,6 +460,16 @@ export const api = {
   /** POST /flows/clone/:programId — clone a pre-built program into a custom routine. */
   cloneProgram(programId: string): Promise<RoutineItem> {
     return request<RoutineItem>(`/flows/clone/${programId}`, { method: 'POST' });
+  },
+
+  // ── Push Notifications ──────────────────────────────────────────
+
+  /** POST /push/subscribe — save/update the user's Web Push subscription. */
+  subscribePush(data: PushSubscriptionPayload): Promise<void> {
+    return request('/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   // -- Legacy boost stubs (kept for studio components compilation) --

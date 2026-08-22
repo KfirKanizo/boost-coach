@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
+  Bell,
+  BellOff,
   Camera,
   Dumbbell,
   Heart,
@@ -19,6 +21,11 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { UserProfile, UserProfileUpdateRequest } from '../api/client';
 import { clearAuthToken } from '../services/tokenStorage';
+import {
+  enablePushNotifications,
+  disablePushNotifications,
+  isPushEnabled,
+} from '../services/pushNotifications';
 import {
   getProfileName,
   setProfileName,
@@ -166,6 +173,11 @@ export function ProfilePage() {
   const [draftPicture, setDraftPicture] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Push notification state
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -191,6 +203,16 @@ export function ProfilePage() {
     void loadProfile();
     setLocalName(getProfileName());
     setLocalPicture(getProfilePicture());
+
+    // Check push notification support and current state
+    const checkPush = async () => {
+      const supported = 'Notification' in window && 'PushManager' in window;
+      setPushSupported(supported);
+      if (supported) {
+        setPushEnabled(await isPushEnabled());
+      }
+    };
+    void checkPush();
   }, [loadProfile]);
 
   const handleLogout = async () => {
@@ -199,6 +221,24 @@ export function ProfilePage() {
     await clearAuthToken();
     navigate('/login', { replace: true });
   };
+
+  const handlePushToggle = useCallback(async () => {
+    if (pushLoading) return;
+    setPushLoading(true);
+    try {
+      if (pushEnabled) {
+        await disablePushNotifications();
+        setPushEnabled(false);
+      } else {
+        const ok = await enablePushNotifications();
+        setPushEnabled(ok);
+      }
+    } catch {
+      // Silent — best-effort
+    } finally {
+      setPushLoading(false);
+    }
+  }, [pushEnabled, pushLoading]);
 
   /** Enter unified edit mode — snapshot current values into drafts. */
   const enterEdit = useCallback(() => {
@@ -607,6 +647,33 @@ export function ProfilePage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Push Notifications */}
+          {pushSupported && (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => void handlePushToggle()}
+                disabled={pushLoading}
+                className={`flex w-full items-center justify-center gap-3 rounded-2xl border-2 py-3.5 text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-60 ${
+                  pushEnabled
+                    ? 'border-neon/30 bg-neon/10 text-neon'
+                    : 'border-white/10 bg-surface text-ash hover:bg-white/[0.07]'
+                }`}
+              >
+                {pushLoading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : pushEnabled ? (
+                  <Bell size={16} />
+                ) : (
+                  <BellOff size={16} />
+                )}
+                {pushEnabled
+                  ? 'Push Notifications Enabled'
+                  : 'Enable Push Notifications'}
+              </button>
             </div>
           )}
 

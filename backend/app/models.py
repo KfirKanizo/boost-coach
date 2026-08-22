@@ -55,6 +55,9 @@ class User(Base):
     workout_sessions: Mapped[list["WorkoutSession"]] = relationship(
         back_populates="user", lazy="selectin"
     )
+    push_subscriptions: Mapped[list["PushSubscription"]] = relationship(
+        back_populates="user", lazy="selectin"
+    )
 
 
 class TrainingProgram(Base):
@@ -217,3 +220,24 @@ class WorkoutSession(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="workout_sessions")
+
+
+class PushSubscription(Base):
+    """Web Push subscription — one row per browser/device endpoint."""
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
+    endpoint: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String, nullable=False)
+    auth: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+
+    user: Mapped[User] = relationship(back_populates="push_subscriptions")
