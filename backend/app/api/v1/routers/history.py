@@ -7,7 +7,7 @@ GET  /api/v1/history/stats — aggregated gamification stats.
 
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ from app.schemas.history import (
     compute_xp,
     xp_for_level,
 )
+from app.services.push_triggers import evaluate_workout_achievements
 
 router = APIRouter(prefix="/history", tags=["history"])
 
@@ -33,6 +34,7 @@ async def complete_workout(
     body: WorkoutCompleteRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ) -> WorkoutSessionResponse:
     """Log a completed workout session and return XP earned + level info."""
     xp = compute_xp(body.verified_reps, body.target_reps)
@@ -59,6 +61,16 @@ async def complete_workout(
     ) or 0
     new_level = compute_level(total_xp)
     previous_level = compute_level(total_xp - xp)
+
+    # ── Push notification triggers (background) ──────────────────────
+    background_tasks.add_task(
+        evaluate_workout_achievements,
+        db,
+        user_id=user.id,
+        xp_earned=xp,
+        total_reps=body.total_reps,
+        total_duration_seconds=body.total_duration_seconds,
+    )
 
     response = WorkoutSessionResponse.model_validate(session)
     response.level = new_level

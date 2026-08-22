@@ -1,6 +1,6 @@
 """create push_subscriptions table
 
-Revision ID: c3d4e5f6a7b8
+Revision ID: d6e7f8a9b0c1
 Revises: b2c3d4e5f6a8
 Create Date: 2026-08-22
 """
@@ -8,7 +8,7 @@ Create Date: 2026-08-22
 from alembic import op
 import sqlalchemy as sa
 
-revision = "c3d4e5f6a7b8"
+revision = "d6e7f8a9b0c1"
 down_revision = "b2c3d4e5f6a8"
 branch_labels = None
 depends_on = None
