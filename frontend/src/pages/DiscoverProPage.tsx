@@ -156,7 +156,7 @@ export function DiscoverProPage() {
                   {program.muscle_tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-ash"
+                      className="rounded-md bg-ink px-2 py-0.5 text-[10px] font-semibold text-ember"
                     >
                       {CATEGORY_LABELS[tag] || tag}
                     </span>
@@ -218,7 +218,7 @@ export function DiscoverProPage() {
                 {previewProgram.muscle_tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-ash"
+                    className="rounded-md bg-ink px-2 py-0.5 text-[10px] font-semibold text-ember"
                   >
                     {CATEGORY_LABELS[tag] || tag}
                   </span>

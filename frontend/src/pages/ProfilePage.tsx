@@ -652,28 +652,41 @@ export function ProfilePage() {
 
           {/* Push Notifications */}
           {pushSupported && (
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={() => void handlePushToggle()}
-                disabled={pushLoading}
-                className={`flex w-full items-center justify-center gap-3 rounded-2xl border-2 py-3.5 text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-60 ${
-                  pushEnabled
-                    ? 'border-neon/30 bg-neon/10 text-neon'
-                    : 'border-white/10 bg-surface text-ash hover:bg-white/[0.07]'
-                }`}
-              >
-                {pushLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : pushEnabled ? (
-                  <Bell size={16} />
-                ) : (
-                  <BellOff size={16} />
-                )}
-                {pushEnabled
-                  ? 'Push Notifications Enabled'
-                  : 'Enable Push Notifications'}
-              </button>
+            <div className="mt-8">
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
+                Notifications
+              </h2>
+              <div className="rounded-card bg-surface p-4">
+                <button
+                  type="button"
+                  onClick={() => void handlePushToggle()}
+                  disabled={pushLoading}
+                  className="flex w-full items-center gap-4 transition-all active:scale-[0.98] disabled:opacity-60"
+                >
+                  <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl transition-colors ${
+                    pushEnabled ? 'bg-neon/15 text-neon' : 'bg-white/5 text-ash'
+                  }`}>
+                    {pushLoading ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : pushEnabled ? (
+                      <Bell size={20} />
+                    ) : (
+                      <BellOff size={20} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 text-left">
+                    <span className="block text-sm font-bold text-paper">
+                      Push Notifications
+                    </span>
+                    <span className="block text-xs text-ash">
+                      {pushEnabled ? 'Receiving workout alerts and updates' : 'Get notified about workouts and achievements'}
+                    </span>
+                  </div>
+                  <div className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${pushEnabled ? 'bg-neon' : 'bg-white/10'}`}>
+                    <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-paper transition-transform ${pushEnabled ? 'translate-x-5' : ''}`} />
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 

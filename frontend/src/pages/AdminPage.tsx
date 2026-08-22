@@ -67,6 +67,10 @@ export function AdminPage() {
 
   const handleBroadcast = useCallback(async () => {
     if (!broadcastTitle.trim() || !broadcastBody.trim()) return;
+    const confirmed = window.confirm(
+      `Send push notification to ALL users?\n\nTitle: ${broadcastTitle.trim()}\nBody: ${broadcastBody.trim()}\n\nThis action cannot be undone.`,
+    );
+    if (!confirmed) return;
     setBroadcastSending(true);
     setBroadcastResult(null);
     try {

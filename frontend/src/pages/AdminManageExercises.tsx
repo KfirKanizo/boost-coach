@@ -114,7 +114,7 @@ function ExerciseRow({ exercise, onSaved }: { exercise: AdminExercise; onSaved: 
         </div>
       ) : (
         <div className="mt-2 flex items-center gap-2">
-          <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-ash">{exercise.movement_pattern}</span>
+          <span className="rounded-full bg-ink px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-neon">{exercise.movement_pattern}</span>
           {!active && <span className="rounded-full bg-crimson/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-crimson">Inactive</span>}
           {saved && <span className="flex items-center gap-1 rounded-full bg-neon/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-neon"><Check size={10} />Saved</span>}
         </div>
