@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dumbbell, MoreVertical, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { Dumbbell, MoreVertical, Pencil, Play, Plus, Trash2, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { FlowOverviewSheet } from '../components/flow/FlowOverviewSheet';
-import { GamificationDashboard } from '../components/profile/GamificationDashboard';
+import { LevelProgress } from '../components/profile/LevelProgress';
+import { WeeklyActivityTracker } from '../components/profile/WeeklyActivityTracker';
+import type { GamificationStats } from '../api/client';
 import type { RoutineExercise } from '../components/builder/RoutineEditor';
 import type { CustomRoutine } from './WorkoutBuilderPage';
 import { toFrontendRoutine } from './WorkoutBuilderPage';
@@ -17,6 +19,7 @@ export function FlowPage() {
 
   const [routines, setRoutines] = useState<CustomRoutine[]>([]);
   const [selectedRoutine, setSelectedRoutine] = useState<CustomRoutine | null>(null);
+  const [stats, setStats] = useState<GamificationStats | null>(null);
 
   // ── 3-dot menu state ──────────────────────────────────────────────
   const [menuRoutineId, setMenuRoutineId] = useState<string | null>(null);
@@ -58,6 +61,10 @@ export function FlowPage() {
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [loadRoutines]);
+
+  useEffect(() => {
+    api.getGamificationStats().then(setStats).catch(() => {});
+  }, []);
 
   const canCreateMore = routines.length < MAX_ROUTINES;
 
@@ -104,16 +111,32 @@ export function FlowPage() {
 
   return (
     <div className="pb-28 pt-4">
-      {/* Gamification Dashboard */}
-      <div className="px-4">
-        <GamificationDashboard />
-      </div>
+      {/* ── Gamification header ──────────────────────────────────── */}
+      {stats && (
+        <div className="flex flex-col gap-4 px-4">
+          <LevelProgress
+            level={stats.level}
+            currentXp={stats.total_xp}
+            xpForCurrentLevel={stats.xp_current_level}
+            xpForNextLevel={stats.xp_next_level}
+            totalXp={stats.total_xp}
+          />
+          <WeeklyActivityTracker
+            activityDays={stats.activity_days}
+            sessionsThisWeek={stats.sessions_this_week}
+            weeklyGoal={stats.weekly_goal}
+          />
+        </div>
+      )}
 
       {/* ── TODAY'S FLOW (scheduled routines) ─────────────────────── */}
-      <div className="mt-6 px-4">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-ash">
-          Today&apos;s Flow
-        </h2>
+      <div className="px-4 pt-2">
+        <div className="mb-5 flex items-center gap-2">
+          <Zap size={18} className="text-neon" fill="currentColor" />
+          <h2 className="text-sm font-bold uppercase tracking-wider text-ash">
+            Today&apos;s Flow
+          </h2>
+        </div>
 
         {hasScheduledToday ? (
           <div className="flex flex-col gap-3">
@@ -153,9 +176,14 @@ export function FlowPage() {
 
       {/* ── All Custom Flows ──────────────────────────────────────── */}
       <div className="mt-8 px-4">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-ash">
-          My Custom Flows
-        </h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-ash">
+            My Custom Flows
+          </h2>
+          <span className="text-xs text-ash/60">
+            {routines.length}/{MAX_ROUTINES}
+          </span>
+        </div>
 
         {routines.length === 0 && (
           <div className="rounded-card border border-dashed border-white/10 py-10 text-center">

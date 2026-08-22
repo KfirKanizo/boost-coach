@@ -102,6 +102,42 @@ export interface AdminExercise {
   is_active: boolean;
 }
 
+/** A single exercise entry within a pre-built program. */
+export interface ProgramExerciseEntry {
+  exercise_id: string;
+  sets: number;
+  target_reps_or_duration: number;
+  rest_time_after_sec: number;
+}
+
+/** Pre-built program returned by admin endpoints. */
+export interface PreBuiltProgram {
+  id: string;
+  title: string;
+  description: string;
+  muscle_tags: string[];
+  exercises: ProgramExerciseEntry[];
+  is_active: boolean;
+}
+
+/** Payload to create a pre-built program. */
+export interface PreBuiltProgramCreate {
+  title: string;
+  description?: string;
+  muscle_tags?: string[];
+  exercises?: ProgramExerciseEntry[];
+  is_active?: boolean;
+}
+
+/** Payload to update a pre-built program. */
+export interface PreBuiltProgramUpdate {
+  title?: string;
+  description?: string;
+  muscle_tags?: string[];
+  exercises?: ProgramExerciseEntry[];
+  is_active?: boolean;
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
@@ -369,6 +405,37 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  },
+
+  // ── Pre-built programs (admin) ─────────────────────────────────
+
+  /** GET /admin/programs — list all pre-built programs. */
+  getAdminPrograms(): Promise<PreBuiltProgram[]> {
+    return request<PreBuiltProgram[]>('/admin/programs');
+  },
+
+  /** POST /admin/programs — create a pre-built program. */
+  createAdminProgram(data: PreBuiltProgramCreate): Promise<PreBuiltProgram> {
+    return request<PreBuiltProgram>('/admin/programs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** PUT /admin/programs/:id — update a pre-built program. */
+  updateAdminProgram(
+    programId: string,
+    data: PreBuiltProgramUpdate,
+  ): Promise<PreBuiltProgram> {
+    return request<PreBuiltProgram>(`/admin/programs/${programId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** DELETE /admin/programs/:id — delete a pre-built program. */
+  async deleteAdminProgram(programId: string): Promise<void> {
+    await request(`/admin/programs/${programId}`, { method: 'DELETE' });
   },
 
   // -- Legacy boost stubs (kept for studio components compilation) --

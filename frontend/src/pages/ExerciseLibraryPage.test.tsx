@@ -64,7 +64,7 @@ describe('ExerciseLibraryPage', () => {
     renderLibrary();
     await screen.findByText('Squat');
 
-    await user.click(screen.getByRole('button', { name: /equipment: bodyweight/i }));
+    await user.click(screen.getByRole('button', { name: /equipment: home/i }));
 
     const grid = getGridContainer();
     expect(within(grid).getByText('Squat')).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe('ExerciseLibraryPage', () => {
     renderLibrary();
     await screen.findByText('Squat');
 
-    await user.click(screen.getByRole('button', { name: /equipment: weights/i }));
+    await user.click(screen.getByRole('button', { name: /equipment: gym/i }));
 
     const grid = getGridContainer();
     expect(within(grid).getByText('Barbell Row')).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe('ExerciseLibraryPage', () => {
     renderLibrary();
     await screen.findByText('Squat');
 
-    await user.click(screen.getByRole('button', { name: /equipment: bodyweight/i }));
+    await user.click(screen.getByRole('button', { name: /equipment: home/i }));
     await user.click(screen.getByRole('button', { name: /pattern: squat/i }));
 
     const grid = getGridContainer();
@@ -157,7 +157,7 @@ describe('ExerciseLibraryPage', () => {
     renderLibrary();
     await screen.findByText('Squat');
 
-    await user.click(screen.getByRole('button', { name: /equipment: bodyweight/i }));
+    await user.click(screen.getByRole('button', { name: /equipment: home/i }));
     const grid = getGridContainer();
     expect(within(grid).queryByText('Barbell Row')).not.toBeInTheDocument();
 
@@ -222,7 +222,7 @@ describe('ExerciseLibraryPage', () => {
     renderLibrary();
     await screen.findByText('Squat');
 
-    await user.click(screen.getByRole('button', { name: /equipment: bodyweight/i }));
+    await user.click(screen.getByRole('button', { name: /equipment: home/i }));
     await user.click(screen.getByRole('button', { name: /muscle group: legs/i }));
 
     const grid = getGridContainer();
@@ -243,5 +243,17 @@ describe('ExerciseLibraryPage', () => {
     expect(within(grid).getByText('Deadlift')).toBeInTheDocument();
     expect(within(grid).queryByText('Squat')).not.toBeInTheDocument();
     expect(within(grid).queryByText('Lunge')).not.toBeInTheDocument();
+  });
+
+  it('shows primary_muscle tag instead of equipment on exercise cards', async () => {
+    renderLibrary();
+    await screen.findByText('Squat');
+
+    const grid = getGridContainer();
+    expect(within(grid).getAllByText('Quadriceps').length).toBeGreaterThanOrEqual(1);
+    expect(within(grid).getByText('Chest')).toBeInTheDocument();
+    expect(within(grid).getByText('Core')).toBeInTheDocument();
+    expect(within(grid).queryByText('Bodyweight')).not.toBeInTheDocument();
+    expect(within(grid).queryByText('Weights')).not.toBeInTheDocument();
   });
 });

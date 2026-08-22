@@ -289,4 +289,24 @@ describe('WorkoutRunner', () => {
     expect(screen.getByText('Workout Complete')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /return to dashboard/i })).toBeInTheDocument();
   });
+
+  it('closes instructions overlay when backdrop is clicked', async () => {
+    renderRunner(singleExercise({
+      sets: 1, reps: 1, restSeconds: 0,
+      instructions: ['Stand tall', 'Lower into squat'],
+    }));
+    await waitForReady();
+
+    const viewBtn = screen.getByRole('button', { name: /view steps/i });
+    await act(async () => { viewBtn.click(); });
+    await act(async () => {});
+
+    expect(screen.getByText('How to perform')).toBeInTheDocument();
+
+    const backdrop = screen.getByText('How to perform').closest('[role="button"]') as HTMLElement;
+    await act(async () => { backdrop.click(); });
+    await act(async () => {});
+
+    expect(screen.queryByText('How to perform')).not.toBeInTheDocument();
+  });
 });

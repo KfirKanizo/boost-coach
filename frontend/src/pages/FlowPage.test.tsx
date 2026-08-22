@@ -55,17 +55,17 @@ describe('FlowPage', () => {
     vi.mocked(api.getRoutines).mockResolvedValue([]);
     vi.mocked(api.getGamificationStats).mockReset();
     vi.mocked(api.getGamificationStats).mockResolvedValue({
-      total_xp: 0,
-      level: 1,
-      xp_current_level: 0,
-      xp_next_level: 100,
-      full_routines: 0,
-      single_exercises: 0,
-      total_reps: 0,
-      total_verified_reps: 0,
-      current_streak: 0,
+      total_xp: 250,
+      level: 2,
+      xp_current_level: 100,
+      xp_next_level: 400,
+      full_routines: 5,
+      single_exercises: 3,
+      total_reps: 120,
+      total_verified_reps: 90,
+      current_streak: 4,
       weekly_goal: 4,
-      sessions_this_week: 0,
+      sessions_this_week: 2,
       activity_days: [],
     });
     vi.mocked(api.deleteRoutine).mockReset();
@@ -84,31 +84,12 @@ describe('FlowPage', () => {
     });
   });
 
-  it('loads and displays gamification stats', async () => {
-    vi.mocked(api.getGamificationStats).mockResolvedValue({
-      total_xp: 250,
-      level: 2,
-      xp_current_level: 100,
-      xp_next_level: 400,
-      full_routines: 5,
-      single_exercises: 3,
-      total_reps: 120,
-      total_verified_reps: 90,
-      current_streak: 4,
-      weekly_goal: 4,
-      sessions_this_week: 2,
-      activity_days: [],
-    });
-
+  it('renders the gamification header with level and weekly tracker', async () => {
     renderFlow();
 
-    expect(await screen.findByText('Full Routines')).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
-    expect(screen.getByText('Single Exercises')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(await screen.findByText('Level 2')).toBeInTheDocument();
+    expect(screen.getByText('This Week')).toBeInTheDocument();
   });
-
-  // --- Custom routines ---
 
   it('shows empty state when no routines are saved', async () => {
     renderFlow();

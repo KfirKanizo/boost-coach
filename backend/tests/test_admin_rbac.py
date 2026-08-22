@@ -5,7 +5,7 @@ from fastapi import HTTPException
 
 from app.api.deps import get_current_admin_user, get_current_user
 from app.core.security import create_access_token
-from app.models import Exercise, User, WorkoutSession
+from app.models import Exercise, PreBuiltProgram, User, WorkoutSession
 
 from helpers import login_headers
 
@@ -263,5 +263,136 @@ async def test_admin_exercises_forbids_regular_user(
 
     headers = await login_headers(async_client, db_session, email=TEST_EMAIL)
     resp = await async_client.get("/api/v1/admin/exercises", headers=headers)
+
+    assert resp.status_code == 403
+
+
+# ── Pre-built programs CRUD ─────────────────────────────────────────
+
+
+async def test_admin_create_program(async_client, db_session) -> None:
+    admin = User(email=ADMIN_EMAIL, is_admin=True)
+    db_session.add(admin)
+    await db_session.flush()
+
+    headers = await login_headers(async_client, db_session, email=ADMIN_EMAIL)
+    resp = await async_client.post(
+        "/api/v1/admin/programs",
+        headers=headers,
+        json={
+            "title": "Full Body Blast",
+            "description": "A 30-minute full body workout",
+            "muscle_tags": ["chest", "back", "legs"],
+            "exercises": [
+                {"exercise_id": "ex-1", "sets": 3, "target_reps_or_duration": 12, "rest_time_after_sec": 60}
+            ],
+        },
+    )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["title"] == "Full Body Blast"
+    assert body["description"] == "A 30-minute full body workout"
+    assert body["muscle_tags"] == ["chest", "back", "legs"]
+    assert len(body["exercises"]) == 1
+    assert body["is_active"] is True
+
+
+async def test_admin_list_programs(async_client, db_session) -> None:
+    admin = User(email=ADMIN_EMAIL, is_admin=True)
+    db_session.add(admin)
+    await db_session.flush()
+
+    p1 = PreBuiltProgram(title="Program A", description="", muscle_tags=[], exercises=[])
+    p2 = PreBuiltProgram(title="Program B", description="", muscle_tags=[], exercises=[])
+    db_session.add_all([p1, p2])
+    await db_session.flush()
+
+    headers = await login_headers(async_client, db_session, email=ADMIN_EMAIL)
+    resp = await async_client.get("/api/v1/admin/programs", headers=headers)
+
+    assert resp.status_code == 200
+    programs = resp.json()
+    titles = {p["title"] for p in programs}
+    assert "Program A" in titles
+    assert "Program B" in titles
+
+
+async def test_admin_get_program(async_client, db_session) -> None:
+    admin = User(email=ADMIN_EMAIL, is_admin=True)
+    db_session.add(admin)
+    await db_session.flush()
+
+    p = PreBuiltProgram(title="Stretch Routine", description="Quick stretch", muscle_tags=["core"], exercises=[])
+    db_session.add(p)
+    await db_session.flush()
+
+    headers = await login_headers(async_client, db_session, email=ADMIN_EMAIL)
+    resp = await async_client.get(f"/api/v1/admin/programs/{p.id}", headers=headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Stretch Routine"
+
+
+async def test_admin_update_program(async_client, db_session) -> None:
+    admin = User(email=ADMIN_EMAIL, is_admin=True)
+    db_session.add(admin)
+    await db_session.flush()
+
+    p = PreBuiltProgram(title="Old Title", description="", muscle_tags=[], exercises=[])
+    db_session.add(p)
+    await db_session.flush()
+
+    headers = await login_headers(async_client, db_session, email=ADMIN_EMAIL)
+    resp = await async_client.put(
+        f"/api/v1/admin/programs/{p.id}",
+        headers=headers,
+        json={"title": "New Title", "is_active": False},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "New Title"
+    assert resp.json()["is_active"] is False
+
+
+async def test_admin_delete_program(async_client, db_session) -> None:
+    admin = User(email=ADMIN_EMAIL, is_admin=True)
+    db_session.add(admin)
+    await db_session.flush()
+
+    p = PreBuiltProgram(title="To Delete", description="", muscle_tags=[], exercises=[])
+    db_session.add(p)
+    await db_session.flush()
+
+    headers = await login_headers(async_client, db_session, email=ADMIN_EMAIL)
+    resp = await async_client.delete(f"/api/v1/admin/programs/{p.id}", headers=headers)
+
+    assert resp.status_code == 204
+
+    resp2 = await async_client.get(f"/api/v1/admin/programs/{p.id}", headers=headers)
+    assert resp2.status_code == 404
+
+
+async def test_admin_get_program_404(async_client, db_session) -> None:
+    admin = User(email=ADMIN_EMAIL, is_admin=True)
+    db_session.add(admin)
+    await db_session.flush()
+
+    headers = await login_headers(async_client, db_session, email=ADMIN_EMAIL)
+    resp = await async_client.get(
+        "/api/v1/admin/programs/00000000-0000-0000-0000-000000000000",
+        headers=headers,
+    )
+
+    assert resp.status_code == 404
+
+
+async def test_admin_programs_forbids_regular_user(async_client, db_session) -> None:
+    regular = User(email=TEST_EMAIL, is_admin=False)
+    db_session.add(regular)
+    await db_session.flush()
+
+    headers = await login_headers(async_client, db_session, email=TEST_EMAIL)
+    resp = await async_client.get("/api/v1/admin/programs", headers=headers)
 
     assert resp.status_code == 403

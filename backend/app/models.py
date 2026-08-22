@@ -99,6 +99,23 @@ class Exercise(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
+class PreBuiltProgram(Base):
+    """Admin-created pre-built workout program available to all users."""
+
+    __tablename__ = "pre_built_programs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    muscle_tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    exercises: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class DailyBoost(Base):
     __tablename__ = "daily_boosts"
 

@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthGuard } from './components/auth/AuthGuard';
 import type { TabId } from './config/navigation';
 import { AppLayout } from './layout/AppLayout';
+import { AdminManageExercises } from './pages/AdminManageExercises';
+import { AdminManagePrograms } from './pages/AdminManagePrograms';
 import { AdminPage } from './pages/AdminPage';
 import { CoachPage } from './pages/CoachPage';
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage';
@@ -11,6 +13,7 @@ import { FlowPage } from './pages/FlowPage';
 import { LoginPage } from './pages/LoginPage';
 import { OnboardingWizard } from './pages/OnboardingWizard';
 import { ProfilePage } from './pages/ProfilePage';
+import { StatisticsPage } from './pages/StatisticsPage';
 import { StudioPage } from './pages/StudioPage';
 import { WorkoutBuilderPage } from './pages/WorkoutBuilderPage';
 import { WorkoutRunner } from './components/runner/WorkoutRunner';
@@ -48,6 +51,7 @@ function AppShell() {
       {activeTab === 'flow' && <FlowPage />}
       {activeTab === 'library' && <ExerciseLibraryPage />}
       {activeTab === 'coach' && <CoachPage />}
+      {activeTab === 'stats' && <StatisticsPage />}
       {activeTab === 'profile' && <ProfilePage />}
       {activeTab === 'admin' && isAdmin && <AdminPage />}
     </AppLayout>
@@ -66,6 +70,8 @@ export default function App() {
         <Route path="/workout" element={<WorkoutRunner />} />
         <Route path="/studio/:boost_id" element={<StudioPage />} />
         <Route path="/exercise/:exercise_id" element={<ExerciseStudioPage />} />
+        <Route path="/admin/exercises" element={<AdminManageExercises />} />
+        <Route path="/admin/programs" element={<AdminManagePrograms />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

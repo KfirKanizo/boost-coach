@@ -281,8 +281,8 @@ export function ExerciseLibraryPage() {
           {(
             [
               { label: 'All', value: 'all' },
-              { label: 'Bodyweight', value: 'bodyweight' },
-              { label: 'Weights', value: 'weights' },
+              { label: 'Home', value: 'bodyweight' },
+              { label: 'Gym', value: 'weights' },
             ] as const
           ).map(({ label, value }) => (
             <button
@@ -380,7 +380,7 @@ export function ExerciseLibraryPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {filtered.map((ex) => {
               const name = ex.name_translations.en ?? ex.id;
-              const isBodyweight = ex.equipment_required === 'bodyweight';
+              const muscle = ex.primary_muscle.charAt(0).toUpperCase() + ex.primary_muscle.slice(1);
               return (
                 <button
                   key={ex.id}
@@ -397,14 +397,8 @@ export function ExerciseLibraryPage() {
                   </span>
 
                   <div className="mt-auto flex flex-wrap gap-1.5">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                        isBodyweight
-                          ? 'bg-neon/10 text-neon'
-                          : 'bg-ember/10 text-ember'
-                      }`}
-                    >
-                      {isBodyweight ? 'Bodyweight' : 'Weights'}
+                    <span className="inline-flex items-center rounded-full bg-neon/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neon">
+                      {muscle}
                     </span>
                     <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ash">
                       {ex.movement_pattern}

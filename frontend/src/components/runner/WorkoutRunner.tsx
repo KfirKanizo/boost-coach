@@ -810,18 +810,29 @@ export function WorkoutRunner() {
 
       {/* ── Instructions overlay (full-width, below animation widget) ── */}
       {showInstructions && currentExercise?.instructions && currentExercise.instructions.length > 0 && (
-        <div className="absolute right-4 top-[11.5rem] z-50 max-h-48 w-72 overflow-y-auto rounded-xl border border-white/10 bg-black/60 p-3 backdrop-blur-md">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neon">
-            How to perform
-          </p>
-          <ol className="space-y-1">
-            {currentExercise.instructions.map((step, i) => (
-              <li key={i} className="text-[11px] leading-relaxed text-paper/80">
-                <span className="mr-1 font-bold text-neon/70">{i + 1}.</span>
-                {step}
-              </li>
-            ))}
-          </ol>
+        <div
+          className="absolute inset-0 z-50"
+          onClick={() => setShowInstructions(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setShowInstructions(false); }}
+          role="button"
+          tabIndex={-1}
+        >
+          <div
+            className="absolute right-4 top-[11.5rem] max-h-48 w-72 overflow-y-auto rounded-xl border border-white/10 bg-black/60 p-3 backdrop-blur-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neon">
+              How to perform
+            </p>
+            <ol className="space-y-1">
+              {currentExercise.instructions.map((step, i) => (
+                <li key={i} className="text-[11px] leading-relaxed text-paper/80">
+                  <span className="mr-1 font-bold text-neon/70">{i + 1}.</span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       )}
 
