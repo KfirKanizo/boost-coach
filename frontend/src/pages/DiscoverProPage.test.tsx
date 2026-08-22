@@ -53,8 +53,8 @@ describe('DiscoverProPage', () => {
     vi.mocked(api.cloneProgram).mockResolvedValue({ id: 'new-routine-1', name: 'Cloned', exercises: [], schedule_days: null, created_at: '' });
     vi.mocked(api.getExercises).mockReset();
     vi.mocked(api.getExercises).mockResolvedValue([
-      { id: 'ex-1', name_translations: { en: 'Push-ups' }, primary_muscle: 'chest', movement_pattern: 'push', equipment_required: 'bodyweight', boost_type: 'VISION_REP', animation_url: null, instructions: null, is_active: true },
-      { id: 'ex-2', name_translations: { en: 'Squats' }, primary_muscle: 'quadriceps', movement_pattern: 'squat', equipment_required: 'bodyweight', boost_type: 'VISION_REP', animation_url: null, instructions: null, is_active: true },
+      { id: 'ex-1', name_translations: { en: 'Push-ups' }, primary_muscle: 'chest', movement_pattern: 'push', equipment_required: 'bodyweight', boost_type: 'VISION_REP' },
+      { id: 'ex-2', name_translations: { en: 'Squats' }, primary_muscle: 'quadriceps', movement_pattern: 'squat', equipment_required: 'bodyweight', boost_type: 'VISION_REP' },
     ]);
   });
 
