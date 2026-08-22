@@ -349,6 +349,49 @@ describe('WorkoutBuilderPage', () => {
     expect(await screen.findByText('Flow Page')).toBeInTheDocument();
   });
 
+  it('shows rest after exercise control only for non-last exercises', async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+
+    // Add first exercise
+    await user.click(screen.getByRole('button', { name: /add exercise/i }));
+    await user.click(screen.getByText('Squat'));
+
+    // With only 1 exercise, "Rest after" should NOT show (it's the last)
+    expect(screen.queryByText(/rest after/i)).not.toBeInTheDocument();
+
+    // Add second exercise
+    await user.click(screen.getByRole('button', { name: /add exercise/i }));
+    await user.click(screen.getByText('Push-Up'));
+
+    // First exercise should now show "Rest after" control
+    expect(screen.getByText(/rest after/i)).toBeInTheDocument();
+  });
+
+  it('saves rest_after_exercise value in the payload', async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+
+    // Add two exercises
+    await user.click(screen.getByRole('button', { name: /add exercise/i }));
+    await user.click(screen.getByText('Squat'));
+
+    await user.click(screen.getByRole('button', { name: /add exercise/i }));
+    await user.click(screen.getByText('Push-Up'));
+
+    // Increase rest after for first exercise (default 0, step 15)
+    const increaseButtons = screen.getAllByRole('button', { name: /increase rest after/i });
+    await user.click(increaseButtons[0]);
+
+    // Save
+    await user.click(screen.getByRole('button', { name: /save routine/i }));
+
+    expect(api.createRoutine).toHaveBeenCalledOnce();
+    const callArg = vi.mocked(api.createRoutine).mock.calls[0][0];
+    expect(callArg.exercises[0].rest_after_exercise).toBe(15);
+    expect(callArg.exercises[1].rest_after_exercise).toBe(0); // default for last exercise
+  });
+
   // --- Edit mode ---
 
   it('shows Edit Routine title in edit mode', async () => {

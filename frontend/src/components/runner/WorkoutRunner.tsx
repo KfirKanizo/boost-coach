@@ -115,6 +115,7 @@ export function WorkoutRunner() {
   const [xpEarned, setXpEarned] = useState(0);
   const [previousLevel, setPreviousLevel] = useState(1);
   const [newLevel, setNewLevel] = useState(1);
+  const [isInterExerciseRest, setIsInterExerciseRest] = useState(false);
 
   // Camera / vision state
   const [landmarks, setLandmarks] = useState<LandmarkPoint[] | null>(null);
@@ -141,6 +142,7 @@ export function WorkoutRunner() {
   const partialExerciseCountRef = useRef(0); // number of exercises with any work done
   const verifiedRepsRef = useRef(0); // vision-verified reps accumulated across sets
   const prevLocalRepRef = useRef(0); // tracks rep count for sound triggering
+  const restDispatchedRef = useRef(false); // prevents double-fire from rest countdown effect
 
   // ── Derived values ─────────────────────────────────────────────────
   const currentExercise = sessionExercises[exerciseIndex];
@@ -360,25 +362,34 @@ export function WorkoutRunner() {
 
   // ── Rest countdown ─────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'resting') return;
-    if (restRemaining <= 0) {
-      // Rest finished → start next set
-      beginSet();
+    if (phase !== 'resting') {
+      restDispatchedRef.current = false;
       return;
     }
+    if (restRemaining <= 0 && !restDispatchedRef.current) {
+      // Rest finished → either start next set or advance exercise
+      restDispatchedRef.current = true;
+      if (isInterExerciseRest) {
+        advanceExercise();
+      } else {
+        beginSet();
+      }
+      return;
+    }
+    if (restRemaining <= 0) return;
     const id = window.setInterval(() => {
       setRestRemaining((s) => {
         if (s <= 1) {
-          // Will trigger beginSet via the effect above
+          // Will trigger beginSet/advanceExercise via the effect above
           return 0;
         }
         return s - 1;
       });
     }, 1000);
     return () => window.clearInterval(id);
-    // beginSet is stable (useCallback with no deps that change during resting)
+    // beginSet/advanceExercise are stable (useCallback with no deps that change during resting)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, restRemaining]);
+  }, [phase, restRemaining, isInterExerciseRest]);
 
   // ── Rest timer audio cues ─────────────────────────────────────────
   useEffect(() => {
@@ -423,7 +434,18 @@ export function WorkoutRunner() {
       beginRest();
     } else if (!isLastExercise) {
       playSetCompleteSound();
-      advanceExercise();
+      // Check if there's an inter-exercise rest configured
+      const interExerciseRest = currentExercise?.restAfterExercise ?? 0;
+      if (interExerciseRest > 0) {
+        // Transition to inter-exercise rest
+        setIsInterExerciseRest(true);
+        pauseLockRef.current = true;
+        setRestRemaining(interExerciseRest);
+        setPhase('resting');
+      } else {
+        // No rest, advance immediately
+        advanceExercise();
+      }
     } else {
       playSetCompleteSound();
       setPhase('completed');
@@ -437,6 +459,7 @@ export function WorkoutRunner() {
     targetReps,
     isLastSet,
     isLastExercise,
+    currentExercise,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Set transitions ────────────────────────────────────────────────
@@ -471,6 +494,7 @@ export function WorkoutRunner() {
     setLocalRepCount(0);
     setHoldElapsed(0);
     setShowInstructions(false);
+    setIsInterExerciseRest(false);
 
     const nextIndex = exerciseIndex + 1;
     setExerciseIndex(nextIndex);
@@ -488,10 +512,10 @@ export function WorkoutRunner() {
     }, 1200);
   }, [exerciseIndex, sessionExercises, teardownVision, startCamera, createWorker]);
 
-  /** Skip the current rest period and jump to the next set. */
+  /** Skip the current rest period and jump to the next set or exercise. */
   const skipRest = useCallback(() => {
     setRestRemaining(0);
-    // beginSet will be triggered by the rest countdown effect
+    // beginSet/advanceExercise will be triggered by the rest countdown effect
   }, []);
 
   // ── Error retry ────────────────────────────────────────────────────
@@ -683,8 +707,9 @@ export function WorkoutRunner() {
 
   // Next label for rest overlay
   const nextSetNum = setIndex + 2; // next set (1-indexed)
-  const nextRestLabel =
-    !isLastSet
+  const nextRestLabel = isInterExerciseRest
+    ? `Get ready for ${sessionExercises[exerciseIndex + 1]?.exerciseName ?? 'Next exercise'}`
+    : !isLastSet
       ? `Set ${nextSetNum} of ${currentExercise?.exerciseName}`
       : !isLastExercise
         ? sessionExercises[exerciseIndex + 1]?.exerciseName ?? 'Next exercise'

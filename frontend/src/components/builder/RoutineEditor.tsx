@@ -12,6 +12,7 @@ export interface RoutineExercise {
   sets: number;
   reps: number;
   restSeconds: number;
+  restAfterExercise?: number; // inter-exercise rest (seconds), default 0
   animationUrl?: string;
   instructions?: string[];
 }
@@ -81,6 +82,7 @@ interface RoutineRowProps {
   onSetsChange: (sets: number) => void;
   onRepsChange: (reps: number) => void;
   onRestChange: (rest: number) => void;
+  onRestAfterExerciseChange?: (rest: number) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
@@ -93,6 +95,7 @@ export function RoutineRow({
   onSetsChange,
   onRepsChange,
   onRestChange,
+  onRestAfterExerciseChange,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -162,6 +165,17 @@ export function RoutineRow({
           suffix="s"
           onChange={onRestChange}
         />
+        {index < total - 1 && onRestAfterExerciseChange && (
+          <Stepper
+            label="Rest after"
+            value={item.restAfterExercise ?? 0}
+            min={0}
+            max={300}
+            step={15}
+            suffix="s"
+            onChange={onRestAfterExerciseChange}
+          />
+        )}
       </div>
     </div>
   );

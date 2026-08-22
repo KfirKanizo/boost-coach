@@ -18,6 +18,7 @@ export interface RoutineItem {
     sets: number;
     reps: number;
     rest_seconds: number;
+    rest_after_exercise?: number;
     animation_url?: string;
     instructions?: string[];
   }[];
@@ -34,6 +35,7 @@ export interface RoutineCreatePayload {
     sets: number;
     reps: number;
     rest_seconds: number;
+    rest_after_exercise?: number;
     animation_url?: string;
     instructions?: string[];
   }[];

@@ -309,4 +309,84 @@ describe('WorkoutRunner', () => {
 
     expect(screen.queryByText('How to perform')).not.toBeInTheDocument();
   });
+
+  it('shows inter-exercise rest after completing last set when restAfterExercise > 0', async () => {
+    vi.useFakeTimers();
+    renderRunner([
+      { exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 1, reps: 2, restSeconds: 0, restAfterExercise: 30 },
+      { exerciseId: 'e-2', exerciseName: 'Squats', movementPattern: 'squat', sets: 1, reps: 2, restSeconds: 0 },
+    ]);
+    await waitForReady();
+
+    await emitResults(2);
+
+    expect(screen.getByText(/up next/i)).toBeInTheDocument();
+    expect(screen.getByText(/get ready for squats/i)).toBeInTheDocument();
+    expect(screen.getByText('30')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /skip rest/i })).toBeInTheDocument();
+  });
+
+  it('advances to next exercise after inter-exercise rest countdown', async () => {
+    vi.useFakeTimers();
+    renderRunner([
+      { exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 1, reps: 2, restSeconds: 0, restAfterExercise: 5 },
+      { exerciseId: 'e-2', exerciseName: 'Squats', movementPattern: 'squat', sets: 1, reps: 2, restSeconds: 0 },
+    ]);
+    await waitForReady();
+
+    await emitResults(2);
+
+    // Rest countdown expires (5s) + transition timeout (1200ms)
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    await act(async () => {});
+
+    await waitForReady();
+
+    expect(screen.getByText('Squats')).toBeInTheDocument();
+    expect(screen.getByText('Set 1 / 1')).toBeInTheDocument();
+  });
+
+  it('skip rest button advances to next exercise during inter-exercise rest', async () => {
+    vi.useFakeTimers();
+    renderRunner([
+      { exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 1, reps: 2, restSeconds: 0, restAfterExercise: 30 },
+      { exerciseId: 'e-2', exerciseName: 'Squats', movementPattern: 'squat', sets: 1, reps: 2, restSeconds: 0 },
+    ]);
+    await waitForReady();
+
+    await emitResults(2);
+
+    fireEvent.click(screen.getByRole('button', { name: /skip rest/i }));
+    await act(async () => {});
+
+    // Transition timeout (1200ms)
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    await act(async () => {});
+
+    await waitForReady();
+
+    expect(screen.getByText('Squats')).toBeInTheDocument();
+  });
+
+  it('skips inter-exercise rest when restAfterExercise is 0', async () => {
+    vi.useFakeTimers();
+    renderRunner([
+      { exerciseId: 'e-1', exerciseName: 'Push-ups', movementPattern: 'push', sets: 1, reps: 2, restSeconds: 0, restAfterExercise: 0 },
+      { exerciseId: 'e-2', exerciseName: 'Squats', movementPattern: 'squat', sets: 1, reps: 2, restSeconds: 0 },
+    ]);
+    await waitForReady();
+
+    await emitResults(2);
+
+    // Should show transition overlay immediately (no rest)
+    expect(screen.getByText(/get ready/i)).toBeInTheDocument();
+    expect(screen.getByText('Squats')).toBeInTheDocument();
+  });
 });

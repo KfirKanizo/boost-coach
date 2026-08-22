@@ -35,6 +35,7 @@ function toFrontendRoutine(item: import('../api/client').RoutineItem): CustomRou
       sets: ex.sets,
       reps: ex.reps,
       restSeconds: ex.rest_seconds,
+      restAfterExercise: ex.rest_after_exercise,
       animationUrl: ex.animation_url,
       instructions: ex.instructions,
     })),
@@ -228,6 +229,7 @@ export function WorkoutBuilderPage() {
             sets: ex.sets,
             reps: ex.reps,
             restSeconds: ex.rest_seconds,
+            restAfterExercise: ex.rest_after_exercise,
             animationUrl: ex.animation_url,
             instructions: ex.instructions,
           })),
@@ -256,6 +258,7 @@ export function WorkoutBuilderPage() {
         sets: DEFAULT_SETS,
         reps: DEFAULT_REPS,
         restSeconds: DEFAULT_REST,
+        restAfterExercise: 0,
         animationUrl: exercise.animation_url,
         instructions: exercise.instructions,
       },
@@ -308,6 +311,7 @@ export function WorkoutBuilderPage() {
         sets: ex.sets,
         reps: ex.reps,
         rest_seconds: ex.restSeconds,
+        rest_after_exercise: ex.restAfterExercise,
         animation_url: ex.animationUrl,
         instructions: ex.instructions,
       })),
@@ -434,6 +438,9 @@ export function WorkoutBuilderPage() {
               onRepsChange={(reps) => updateExercise(index, { reps })}
               onRestChange={(restSeconds) =>
                 updateExercise(index, { restSeconds })
+              }
+              onRestAfterExerciseChange={(restAfterExercise) =>
+                updateExercise(index, { restAfterExercise })
               }
               onMoveUp={() => moveExercise(index, -1)}
               onMoveDown={() => moveExercise(index, 1)}

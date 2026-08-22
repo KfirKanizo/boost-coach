@@ -147,3 +147,58 @@ async def test_create_routine_requires_auth(async_client) -> None:
         json={"name": "X", "exercises": [{"exercise_id": str(uuid.uuid4()), "exercise_name": "A", "movement_pattern": "push", "sets": 3, "reps": 10, "rest_seconds": 60}]},
     )
     assert resp.status_code == 401
+
+
+async def test_create_routine_with_rest_after_exercise(async_client, db_session) -> None:
+    """Test that rest_after_exercise is accepted and stored."""
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    resp = await async_client.post(
+        "/api/v1/routines",
+        headers=headers,
+        json={
+            "name": "Flow with rest",
+            "exercises": [
+                {
+                    "exercise_id": FIXTURE_EXERCISE_ID,
+                    "exercise_name": "Push-ups",
+                    "movement_pattern": "push",
+                    "sets": 3,
+                    "reps": 10,
+                    "rest_seconds": 60,
+                    "rest_after_exercise": 90,
+                }
+            ],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["exercises"][0]["rest_after_exercise"] == 90
+
+
+async def test_create_routine_rest_after_exercise_defaults_to_zero(async_client, db_session) -> None:
+    """Test that rest_after_exercise defaults to 0 when not provided."""
+    await _seed_user(db_session)
+    headers = await login_headers(async_client, db_session)
+
+    resp = await async_client.post(
+        "/api/v1/routines",
+        headers=headers,
+        json={
+            "name": "Flow without rest",
+            "exercises": [
+                {
+                    "exercise_id": FIXTURE_EXERCISE_ID,
+                    "exercise_name": "Push-ups",
+                    "movement_pattern": "push",
+                    "sets": 3,
+                    "reps": 10,
+                    "rest_seconds": 60,
+                }
+            ],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["exercises"][0]["rest_after_exercise"] == 0
