@@ -45,6 +45,7 @@ export function AdminPage() {
   const [broadcastLink, setBroadcastLink] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+  const [broadcastConfirmOpen, setBroadcastConfirmOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -67,10 +68,11 @@ export function AdminPage() {
 
   const handleBroadcast = useCallback(async () => {
     if (!broadcastTitle.trim() || !broadcastBody.trim()) return;
-    const confirmed = window.confirm(
-      `Send push notification to ALL users?\n\nTitle: ${broadcastTitle.trim()}\nBody: ${broadcastBody.trim()}\n\nThis action cannot be undone.`,
-    );
-    if (!confirmed) return;
+    setBroadcastConfirmOpen(true);
+  }, [broadcastTitle, broadcastBody]);
+
+  const confirmBroadcast = useCallback(async () => {
+    setBroadcastConfirmOpen(false);
     setBroadcastSending(true);
     setBroadcastResult(null);
     try {
@@ -265,6 +267,60 @@ export function AdminPage() {
             </div>
           </section>
         </>
+      )}
+
+      {/* Broadcast confirmation modal */}
+      {broadcastConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm broadcast"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-8 backdrop-blur-sm"
+          onClick={() => setBroadcastConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-white/10 bg-surface/90 p-6 text-center backdrop-blur-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15">
+              <Send size={20} className="text-amber-400" />
+            </div>
+            <h3 className="font-display text-lg font-bold text-paper">
+              Broadcast to all users?
+            </h3>
+            <div className="mt-3 rounded-xl bg-white/5 px-4 py-3 text-left">
+              <p className="text-xs font-bold uppercase tracking-wider text-ash">Title</p>
+              <p className="mt-0.5 text-sm text-paper">{broadcastTitle.trim()}</p>
+              <p className="mt-2 text-xs font-bold uppercase tracking-wider text-ash">Body</p>
+              <p className="mt-0.5 text-sm text-paper">{broadcastBody.trim()}</p>
+              {broadcastLink.trim() && (
+                <>
+                  <p className="mt-2 text-xs font-bold uppercase tracking-wider text-ash">Link</p>
+                  <p className="mt-0.5 text-sm text-neon">{broadcastLink.trim()}</p>
+                </>
+              )}
+            </div>
+            <p className="mt-3 text-xs text-ash">
+              This will send a push notification to every subscribed device.
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => void confirmBroadcast()}
+                className="w-full rounded-xl border border-amber-500/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-400 transition-colors hover:bg-amber-500/25 active:scale-[0.98]"
+              >
+                Send Broadcast
+              </button>
+              <button
+                type="button"
+                onClick={() => setBroadcastConfirmOpen(false)}
+                className="w-full rounded-xl bg-white/5 py-3 text-sm font-bold text-paper transition-colors hover:bg-white/10 active:scale-[0.98]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

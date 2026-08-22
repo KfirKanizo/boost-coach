@@ -128,9 +128,7 @@ export function DiscoverProPage() {
               {/* Category badge */}
               <div className="mb-2 flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                  program.equipment_category === 'home'
-                    ? 'bg-neon/10 text-neon'
-                    : 'bg-amber-500/10 text-amber-400'
+                  'bg-neon/10 text-neon'
                 }`}>
                   {program.equipment_category === 'home' ? (
                     <HomeIcon size={9} />
@@ -185,9 +183,7 @@ export function DiscoverProPage() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                  previewProgram.equipment_category === 'home'
-                    ? 'bg-neon/10 text-neon'
-                    : 'bg-amber-500/10 text-amber-400'
+                  'bg-neon/10 text-neon'
                 }`}>
                   {previewProgram.equipment_category === 'home' ? (
                     <HomeIcon size={9} />

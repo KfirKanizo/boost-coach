@@ -397,10 +397,10 @@ export function ExerciseLibraryPage() {
                   </span>
 
                   <div className="mt-auto flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center rounded-full bg-neon/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neon">
+                    <span className="inline-flex items-center rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ember">
                       {muscle}
                     </span>
-                    <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ash">
+                    <span className="inline-flex items-center rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neon">
                       {ex.movement_pattern}
                     </span>
                   </div>

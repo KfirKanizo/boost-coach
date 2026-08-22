@@ -651,12 +651,26 @@ export function ProfilePage() {
           )}
 
           {/* Push Notifications */}
-          {pushSupported && (
-            <div className="mt-8">
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
-                Notifications
-              </h2>
-              <div className="rounded-card bg-surface p-4">
+          <div className="mt-8">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-ash">
+              Notifications
+            </h2>
+            <div className="rounded-card bg-surface p-4">
+              {!pushSupported ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/5 text-ash">
+                    <BellOff size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-paper">
+                      Push Notifications
+                    </span>
+                    <span className="block text-xs text-ash">
+                      Enable on the web version over HTTPS to receive alerts
+                    </span>
+                  </div>
+                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={() => void handlePushToggle()}
@@ -686,9 +700,9 @@ export function ProfilePage() {
                     <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-paper transition-transform ${pushEnabled ? 'translate-x-5' : ''}`} />
                   </div>
                 </button>
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Logout */}
           <button
